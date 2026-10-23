@@ -55,6 +55,7 @@ export class Lobby {
       return;
     }
     if (typeof msg !== "object" || msg === null) return player.send({ t: "error", message: "bad message" });
+    if (msg.t === "board") return player.send({ t: "board", board: this.#board.top() });
     if (!player.id) {
       if (msg.t === "hello") return this.#hello(player, msg);
       return player.send({ t: "error", message: "say hello first" });
@@ -64,6 +65,8 @@ export class Lobby {
         return this.#enqueue(player);
       case "leave":
         return this.#dequeue(player);
+      case "quit":
+        return player.match?.leave(player);
       case "ready": {
         const problem = player.match?.ready(player);
         if (problem) player.send({ t: "error", message: problem });

@@ -1,0 +1,19 @@
+[Unit]
+Description=plankd pose judge
+After=network-online.target plankd-api.service plankd-livekit.service
+Wants=network-online.target
+
+[Service]
+User=plankd
+WorkingDirectory=/opt/plankd/app/judge
+EnvironmentFile=/opt/plankd/app/.env
+ExecStart=/opt/plankd/app/judge/.venv/bin/python main.py
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

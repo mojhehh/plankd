@@ -1,0 +1,20 @@
+[Unit]
+Description=plankd game server
+After=network-online.target plankd-livekit.service
+Wants=network-online.target
+
+[Service]
+User=plankd
+WorkingDirectory=/opt/plankd/app
+EnvironmentFile=/opt/plankd/app/.env
+ExecStart=/usr/local/bin/node server/index.js
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/plankd/app/data
+
+[Install]
+WantedBy=multi-user.target

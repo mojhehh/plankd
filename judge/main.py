@@ -92,7 +92,7 @@ class Judge:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    server_url = os.environ.get("PLANKD_JUDGE_URL", "ws://127.0.0.1:7400/judge")
+    server_url = os.environ.get("PLANKD_JUDGE_URL", "ws://127.0.0.1:7401")
     secret = os.environ["PLANKD_JUDGE_SECRET"]
     asyncio.run(Judge(server_url, secret).run())
 

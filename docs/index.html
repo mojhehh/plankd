@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0b0c">
+  <title>plankd</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23d7ff3a'/%3E%3Crect x='2' y='9' width='12' height='3' fill='%230b0b0c'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <main id="home" class="screen active">
+    <header class="brand">
+      <h1>PLANKD</h1>
+      <p>1v1 plank battles. Last one up wins.</p>
+    </header>
+
+    <form id="play-form" class="play">
+      <label for="name">Your name</label>
+      <input id="name" name="name" autocomplete="nickname" maxlength="16" minlength="2" pattern="[A-Za-z0-9_ ]{2,16}" required placeholder="2-16 letters or numbers">
+      <button id="play" type="submit" class="primary">PLAY</button>
+    </form>
+
+    <ol class="setup">
+      <li><b>Phone on the floor,</b> turned sideways.</li>
+      <li><b>About 2 m away,</b> camera looking at your side.</li>
+      <li><b>Head to heels</b> in the frame.</li>
+    </ol>
+
+    <section class="board">
+      <h2>Leaderboard</h2>
+      <table>
+        <thead><tr><th>#</th><th>Name</th><th>Best</th><th>W</th></tr></thead>
+        <tbody id="board-rows"><tr><td colspan="4" class="muted">Loading...</td></tr></tbody>
+      </table>
+    </section>
+  </main>
+
+  <main id="arena" class="screen">
+    <video id="their-video" class="their-video" autoplay playsinline muted></video>
+    <div id="frame-guide" class="frame-guide"><span>head to heels in here</span></div>
+
+    <div class="hud-top">
+      <div id="opponent" class="opponent">Finding an opponent...</div>
+      <div id="their-status" class="their-status"></div>
+      <button id="leave" class="ghost" type="button">Leave</button>
+    </div>
+
+    <div id="center" class="center">
+      <div id="big" class="big"></div>
+      <div id="sub" class="sub"></div>
+      <button id="ready" class="primary hidden" type="button">I'M READY</button>
+    </div>
+
+    <div id="your-status" class="your-status"></div>
+    <video id="my-video" class="my-video" autoplay playsinline muted></video>
+    <div id="rotate" class="rotate">Turn your phone sideways</div>
+
+    <div id="result" class="result hidden">
+      <div id="result-title" class="result-title"></div>
+      <div id="result-times" class="result-times"></div>
+      <div id="result-why" class="result-why"></div>
+      <div class="result-actions">
+        <button id="again" class="primary" type="button">PLAY AGAIN</button>
+        <button id="home-btn" class="ghost" type="button">Home</button>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
