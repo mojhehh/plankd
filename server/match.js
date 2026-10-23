@@ -9,6 +9,7 @@ export const READY_TIMEOUT_MS = 90_000;
 export const MAX_MS = 30 * 60_000;
 export const FROZEN_FRAMES = 12;
 const FRAME_MIN_GAP_MS = 60;
+const SMOOTHING_FRAMES = 5;
 const TICK_MS = 100;
 const BROADCAST_EVERY = 2;
 
@@ -18,24 +19,33 @@ class Feed {
   reason = "waiting for camera";
   prev = null;
   still = 0;
+  #recent = [];
 
   update(frame, aspect, world, now) {
     this.at = now;
     if (frame === null) {
       this.prev = null;
       this.still = 0;
-      this.ok = false;
-      this.reason = "no body found";
+      this.#settle({ ok: false, reason: "no body found" });
       return;
     }
     this.still = this.prev && sameFrame(this.prev, frame) ? this.still + 1 : 0;
     this.prev = frame;
     if (this.still >= FROZEN_FRAMES) {
+      this.#recent = [];
       this.ok = false;
       this.reason = "video looks frozen";
       return;
     }
-    ({ ok: this.ok, reason: this.reason } = assessPlank(frame, aspect, world));
+    this.#settle(assessPlank(frame, aspect, world));
+  }
+
+  #settle(verdict) {
+    this.#recent.push(verdict);
+    if (this.#recent.length > SMOOTHING_FRAMES) this.#recent.shift();
+    const holding = this.#recent.filter((v) => v.ok).length;
+    this.ok = holding * 2 > this.#recent.length;
+    this.reason = this.ok ? "holding" : this.#recent.findLast((v) => !v.ok).reason;
   }
 
   live(now) {

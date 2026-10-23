@@ -167,3 +167,13 @@ test("a solo practice round runs and reports its own hold time", () => {
   assert.ok(result.yourMs >= 4_000 && result.yourMs < 4_300);
   assert.deepEqual(ended, [[]]);
 });
+
+test("one bad frame does not flip the status, a sustained one does", () => {
+  const ctx = setup();
+  ctx.step(600, { id_a: planking, id_b: planking });
+  ctx.step(100, { id_a: sagging, id_b: planking });
+  assert.equal(ctx.a.last("skeleton").ok, true);
+  ctx.step(300, { id_a: sagging, id_b: planking });
+  assert.equal(ctx.a.last("skeleton").ok, false);
+  assert.equal(ctx.a.last("skeleton").reason, "hips sagging");
+});
