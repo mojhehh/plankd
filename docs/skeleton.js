@@ -30,7 +30,9 @@ export function clearSkeleton(canvas) {
   canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
 }
 
-export function drawSkeleton(canvas, video, frame, ok) {
+const COLORS = { ok: "#3ddc84", warn: "#ffb020", bad: "#ff4d4d" };
+
+export function drawSkeleton(canvas, video, frame, tone) {
   const ratio = fitCanvas(canvas);
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -38,7 +40,7 @@ export function drawSkeleton(canvas, video, frame, ok) {
 
   const rect = videoRect(canvas, video);
   const at = ([x, y]) => [rect.x + x * rect.w, rect.y + y * rect.h];
-  const color = ok ? "#3ddc84" : "#ff4d4d";
+  const color = COLORS[tone];
 
   ctx.lineCap = "round";
   ctx.strokeStyle = color;

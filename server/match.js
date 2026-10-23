@@ -128,7 +128,7 @@ export class Match {
     if (now - side.feed.at < FRAME_MIN_GAP_MS) return;
     side.feed.update(frame, aspect, world, now);
     side.recorder.add(this.phase, now, frame, aspect, world, side.feed.reason);
-    side.player.send({ t: "skeleton", frame, aspect, ok: side.feed.ok });
+    side.player.send({ t: "skeleton", frame, aspect, ok: side.feed.ok, reason: side.feed.reason });
   }
 
   judgeFailed() {

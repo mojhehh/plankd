@@ -7,6 +7,7 @@
   --accent: #d7ff3a;
   --good: #3ddc84;
   --bad: #ff4d4d;
+  --warn: #ffb020;
   --display: "Archivo Black", "Arial Black", sans-serif;
   --body: "Inter", system-ui, sans-serif;
 }
@@ -206,6 +207,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
 
 .their-status.ok { color: var(--good); }
 .their-status.bad { color: var(--bad); }
+.their-status.warn { color: var(--good); }
 
 .center {
   position: absolute;
@@ -253,6 +255,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
 .your-status:empty { display: none; }
 .your-status.ok { background: var(--good); color: #04150b; }
 .your-status.bad { background: var(--bad); color: #1a0303; }
+.your-status.warn { background: var(--warn); color: #1a1003; }
 
 .result {
   position: absolute;

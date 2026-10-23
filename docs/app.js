@@ -127,7 +127,7 @@ function handle(msg) {
     case "state":
       return onState(msg);
     case "skeleton":
-      return drawSkeleton(ui.skeleton, ui.myVideo, msg.frame, msg.ok);
+      return drawSkeleton(ui.skeleton, ui.myVideo, msg.frame, tone(msg));
     case "result":
       return onResult(msg);
     case "cancelled":
@@ -277,6 +277,11 @@ function serverNow() {
   return Date.now() + clockOffset;
 }
 
+function tone({ ok, reason }) {
+  if (!ok) return "bad";
+  return reason === "holding" ? "ok" : "warn";
+}
+
 function onState(msg) {
   clockOffset = msg.now - Date.now();
   const previous = state?.phase;
@@ -284,10 +289,10 @@ function onState(msg) {
   ui.ready.classList.toggle("hidden", msg.phase !== "connecting" || msg.you.ready);
   if (msg.them) {
     ui.theirStatus.textContent = msg.them.ok ? "holding" : msg.them.reason;
-    ui.theirStatus.className = `their-status ${msg.them.ok ? "ok" : "bad"}`;
+    ui.theirStatus.className = `their-status ${tone(msg.them)}`;
   }
-  ui.yourStatus.textContent = msg.you.ok ? "holding" : msg.you.reason;
-  ui.yourStatus.className = `your-status ${msg.you.ok ? "ok" : "bad"}`;
+  ui.yourStatus.textContent = msg.you.reason;
+  ui.yourStatus.className = `your-status ${tone(msg.you)}`;
 
   if (msg.phase === "connecting") {
     ui.big.textContent = "";

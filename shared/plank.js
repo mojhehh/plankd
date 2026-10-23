@@ -105,7 +105,7 @@ export function assessPlank(frame, aspect, world) {
   if (m.size < MIN_SIZE) return { ok: false, reason: "move closer to the camera" };
   if (m.torsoTilt > MAX_TORSO_TILT_DEG) return { ok: false, reason: "get horizontal" };
   if (!m.armsDown) return { ok: false, reason: "arms under your shoulders" };
-  if (m.legsFolded) return { ok: true, reason: "holding", legsTrusted: false };
+  if (m.legsFolded) return { ok: true, reason: "holding, show your knees", legsTrusted: false };
   if (m.tilt > MAX_TILT_DEG) return { ok: false, reason: "get horizontal" };
   if (m.hip < MIN_HIP_DEG) return { ok: false, reason: m.hipsLow ? "hips sagging" : "hips too high" };
   if (m.knee < MIN_KNEE_DEG) return { ok: false, reason: "knees down" };

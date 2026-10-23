@@ -41,7 +41,7 @@ for (const view of ["side", "front"]) {
 test("legs the model folds onto the arms are ignored instead of failing the plank", () => {
   const onArms = { knee: [-0.35, 0.2], ankle: [-0.15, 0.3] };
   const { frame, world } = plankPose({ view: "front", place: onArms });
-  assert.deepEqual(assessPlank(frame, ASPECT, world), { ok: true, reason: "holding", legsTrusted: false });
+  assert.deepEqual(assessPlank(frame, ASPECT, world), { ok: true, reason: "holding, show your knees", legsTrusted: false });
 });
 
 test("ignoring folded legs still catches a torso that is not level", () => {
