@@ -8,57 +8,42 @@ function reason(options) {
   return assessPlank(frame, ASPECT, world).reason;
 }
 
-test("a straight plank holds filmed from the side", () => {
+test("a straight plank filmed from the side holds", () => {
   assert.equal(reason({ view: "side" }), "holding");
 });
 
-test("a straight plank holds filmed head-on", () => {
-  assert.equal(reason({ view: "front" }), "holding");
+test("a camera facing the player is refused, since kneeling looks like planking head-on", () => {
+  assert.equal(reason({ view: "front" }), "turn the phone to see your side");
+  assert.equal(reason({ view: "front", place: { knee: [0.1, 0.45], ankle: [0.55, 0.45] } }), "turn the phone to see your side");
 });
 
-test("head-on with the legs half hidden behind the body still holds", () => {
-  assert.equal(reason({ view: "front", visibility: { knee: 0.3, ankle: 0.2 } }), "holding");
+test("sagging hips fail", () => {
+  assert.equal(reason({ bend: { hip: 0.3 } }), "hips sagging");
 });
 
-for (const view of ["side", "front"]) {
-  test(`sagging hips fail (${view})`, () => {
-    assert.equal(reason({ view, bend: { hip: 0.3 } }), "hips sagging");
-  });
-
-  test(`piked hips fail (${view})`, () => {
-    assert.equal(reason({ view, bend: { hip: -0.35 } }), "hips too high");
-  });
-
-  test(`knees on the floor fail (${view})`, () => {
-    assert.equal(reason({ view, bend: { knee: 0.35 } }), "knees down");
-  });
-
-  test(`standing up fails (${view})`, () => {
-    assert.equal(reason({ view, standing: true }), "get horizontal");
-  });
-}
-
-test("legs the model folds onto the arms are ignored instead of failing the plank", () => {
-  const onArms = { knee: [-0.35, 0.2], ankle: [-0.15, 0.3] };
-  const { frame, world } = plankPose({ view: "front", place: onArms });
-  assert.deepEqual(assessPlank(frame, ASPECT, world), { ok: true, reason: "holding, show your knees", legsTrusted: false });
+test("piked hips fail", () => {
+  assert.equal(reason({ bend: { hip: -0.35 } }), "hips too high");
 });
 
-test("ignoring folded legs still catches a torso that is not level", () => {
-  const onArms = { knee: [-0.35, 0.2], ankle: [-0.15, 0.3] };
-  assert.equal(reason({ view: "front", place: { ...onArms, shoulder: [-0.3, -0.45], elbow: [-0.3, -0.1] } }), "get horizontal");
+test("knees on the floor fail", () => {
+  assert.equal(reason({ bend: { knee: 0.35 } }), "knees down");
+  assert.equal(reason({ place: { knee: [0.1, 0.45], ankle: [0.55, 0.45] } }), "knees down");
 });
 
-test("real kneeling with legs behind the hips is still caught head-on", () => {
-  assert.equal(reason({ view: "front", place: { knee: [0.1, 0.45], ankle: [0.55, 0.45] } }), "knees down");
+test("legs the model folds toward the head are not trusted", () => {
+  assert.equal(reason({ place: { knee: [-0.35, 0.2], ankle: [-0.15, 0.3] } }), "show your knees");
+});
+
+test("standing up fails", () => {
+  assert.equal(reason({ standing: true }), "get horizontal");
 });
 
 test("arms above the shoulders fail", () => {
   assert.equal(reason({ bend: { elbow: -0.6 } }), "arms under your shoulders");
 });
 
-test("no legs visible at all fails", () => {
-  assert.equal(reason({ view: "front", visibility: { knee: 0.05, ankle: 0.05 } }), "legs not in frame");
+test("barely visible legs fail", () => {
+  assert.equal(reason({ visibility: { knee: 0.1, ankle: 0.1 } }), "legs not in frame");
 });
 
 test("hidden shoulders fail", () => {

@@ -7,7 +7,8 @@ const KNEES = [25, 26];
 const ANKLES = [27, 28];
 
 const MIN_UPPER_VISIBILITY = 0.5;
-const MIN_LEG_VISIBILITY = 0.15;
+const MIN_LEG_VISIBILITY = 0.3;
+const MAX_FRONTAL_RATIO = 1.1;
 const MIN_SIZE = 0.2;
 const MAX_TILT_DEG = 45;
 const MAX_TORSO_TILT_DEG = 40;
@@ -66,6 +67,13 @@ function tiltOf(vector) {
   return (Math.asin(Math.min(1, Math.abs(vector[1]) / (norm(vector) || 1e-6))) * 180) / Math.PI;
 }
 
+function frontalRatio(frame, aspect) {
+  const width = Math.abs(frame[11][0] - frame[12][0]) * aspect;
+  const torsoX = ((frame[23][0] + frame[24][0]) / 2 - (frame[11][0] + frame[12][0]) / 2) * aspect;
+  const torsoY = (frame[23][1] + frame[24][1]) / 2 - (frame[11][1] + frame[12][1]) / 2;
+  return width / (Math.hypot(torsoX, torsoY) || 1e-6);
+}
+
 function screenSize(frame, aspect) {
   const seen = frame.filter((p) => p[2] >= 0.3);
   if (seen.length < 2) return 0;
@@ -89,6 +97,7 @@ export function measurePlank(frame, aspect, world) {
     legs: Math.max(bestVisibility(frame, KNEES), bestVisibility(frame, ANKLES)),
     legsFolded: dot(sub(knee, hip), towardHead) > 0 || dot(sub(ankle, hip), towardHead) > 0,
     size: screenSize(frame, aspect),
+    frontal: frontalRatio(frame, aspect),
     torsoTilt: tiltOf(sub(hip, shoulder)),
     tilt: tiltOf(body),
     hip: angleAt(shoulder, hip, ankle),
@@ -103,11 +112,12 @@ export function assessPlank(frame, aspect, world) {
   if (m.upper < MIN_UPPER_VISIBILITY) return { ok: false, reason: "upper body not in frame" };
   if (m.legs < MIN_LEG_VISIBILITY) return { ok: false, reason: "legs not in frame" };
   if (m.size < MIN_SIZE) return { ok: false, reason: "move closer to the camera" };
+  if (m.frontal > MAX_FRONTAL_RATIO) return { ok: false, reason: "turn the phone to see your side" };
   if (m.torsoTilt > MAX_TORSO_TILT_DEG) return { ok: false, reason: "get horizontal" };
   if (!m.armsDown) return { ok: false, reason: "arms under your shoulders" };
-  if (m.legsFolded) return { ok: true, reason: "holding, show your knees", legsTrusted: false };
+  if (m.legsFolded) return { ok: false, reason: "show your knees" };
   if (m.tilt > MAX_TILT_DEG) return { ok: false, reason: "get horizontal" };
   if (m.hip < MIN_HIP_DEG) return { ok: false, reason: m.hipsLow ? "hips sagging" : "hips too high" };
   if (m.knee < MIN_KNEE_DEG) return { ok: false, reason: "knees down" };
-  return { ok: true, reason: "holding", legsTrusted: true };
+  return { ok: true, reason: "holding" };
 }
