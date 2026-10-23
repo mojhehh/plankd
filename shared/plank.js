@@ -123,6 +123,7 @@ export function measurePlank(frame, aspect, world) {
     armDrop: elbow[1] - shoulder[1],
     hipLift: elbow[1] - hip[1],
     kneeRise: Math.min(hip[1], shoulder[1]) - knee[1],
+    kneeAboveAnkle: ankle[1] - knee[1],
     thigh: angleAt(shoulder, hip, knee),
     knee: angleAt(hip, knee, ankle),
     hipsLow: hip[1] > shoulder[1] + t * thighLine[1],

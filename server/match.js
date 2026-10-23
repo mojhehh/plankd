@@ -1,8 +1,12 @@
-import { assessPlank, isValidAspect, isValidFrame, isValidWorld } from "../shared/plank.js";
+import { assessPlank, isValidAspect, isValidFrame, isValidWorld, measurePlank } from "../shared/plank.js";
 import { Recorder } from "./recorder.js";
 
 export const COUNTDOWN_MS = 10_000;
-export const GRACE_MS = 2_500;
+export const GRACE_MS = 1_750;
+export const KNEE_GRACE_MS = 1_000;
+export const BASELINE_FRAMES = 24;
+const KNEE_SINK_M = 0.035;
+const KNEE_DROP_M = 0.03;
 export const FRAME_TTL_MS = 1_500;
 export const SILENCE_MS = 3_000;
 export const READY_TIMEOUT_MS = 90_000;
@@ -20,8 +24,10 @@ class Feed {
   prev = null;
   still = 0;
   #recent = [];
+  #samples = [];
+  #baseline = null;
 
-  update(frame, aspect, world, now) {
+  update(frame, aspect, world, now, live = false) {
     this.at = now;
     if (frame === null) {
       this.prev = null;
@@ -37,7 +43,19 @@ class Feed {
       this.reason = "video looks frozen";
       return;
     }
-    this.#settle(assessPlank(frame, aspect, world));
+    this.#settle(this.#judge(assessPlank(frame, aspect, world), frame, aspect, world, live));
+  }
+
+  #judge(verdict, frame, aspect, world, live) {
+    if (!verdict.ok || !live) return verdict;
+    const { kneeAboveAnkle, kneeRise } = measurePlank(frame, aspect, world);
+    if (!this.#baseline) {
+      this.#samples.push({ kneeAboveAnkle, kneeRise });
+      if (this.#samples.length >= BASELINE_FRAMES) this.#baseline = medians(this.#samples);
+      return verdict;
+    }
+    const sunk = kneeAboveAnkle < this.#baseline.kneeAboveAnkle - KNEE_SINK_M && kneeRise < this.#baseline.kneeRise - KNEE_DROP_M;
+    return sunk ? { ok: false, reason: "knees down" } : verdict;
   }
 
   #settle(verdict) {
@@ -56,6 +74,14 @@ class Feed {
     if (!this.live(now)) return { ok: false, reason: this.at ? "camera feed lost" : "waiting for camera" };
     return { ok: this.ok, reason: this.reason };
   }
+}
+
+function medians(samples) {
+  const pick = (key) => {
+    const sorted = samples.map((s) => s[key]).sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)];
+  };
+  return { kneeAboveAnkle: pick("kneeAboveAnkle"), kneeRise: pick("kneeRise") };
 }
 
 function sameFrame(a, b) {
@@ -136,7 +162,7 @@ export class Match {
     }
     const now = this.#clock();
     if (now - side.feed.at < FRAME_MIN_GAP_MS) return;
-    side.feed.update(frame, aspect, world, now);
+    side.feed.update(frame, aspect, world, now, this.phase === "live");
     side.recorder.add(this.phase, now, frame, aspect, world, side.feed.reason);
     side.player.send({ t: "skeleton", frame, aspect, ok: side.feed.ok, reason: side.feed.reason });
   }
@@ -171,7 +197,7 @@ export class Match {
       }
       const { ok, reason } = side.feed.read(now);
       if (ok) side.lastHolding = now;
-      else if (now - side.lastHolding > GRACE_MS) side.out = reason;
+      else if (now - side.lastHolding > (reason === "knees down" ? KNEE_GRACE_MS : GRACE_MS)) side.out = reason;
     }
     if (this.#sides.some((s) => s.out) || now - this.startedAt >= MAX_MS) this.#finish(now);
   }

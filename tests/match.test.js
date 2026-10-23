@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { COUNTDOWN_MS, FROZEN_FRAMES, GRACE_MS, Match, SILENCE_MS } from "../server/match.js";
+import { BASELINE_FRAMES, COUNTDOWN_MS, FROZEN_FRAMES, GRACE_MS, KNEE_GRACE_MS, Match, SILENCE_MS } from "../server/match.js";
 import { ASPECT, fakeClock, fakePlayer, plankPose } from "./fixtures.js";
 
 function setup() {
@@ -176,4 +176,24 @@ test("one bad frame does not flip the status, a sustained one does", () => {
   ctx.step(300, { id_a: sagging, id_b: planking });
   assert.equal(ctx.a.last("skeleton").ok, false);
   assert.equal(ctx.a.last("skeleton").reason, "hips sagging");
+});
+
+const sunkKnees = (drop) => (jitter) => plankPose({ bend: { knee: drop }, jitter });
+
+test("knees sinking below the player's own calibrated plank count as knees down", () => {
+  const ctx = setup();
+  startLive(ctx);
+  ctx.step(BASELINE_FRAMES * 100 + 2_000, { id_a: planking, id_b: planking });
+  assert.equal(ctx.match.phase, "live");
+  ctx.step(KNEE_GRACE_MS + 600, { id_a: planking, id_b: sunkKnees(0.06) });
+  assert.equal(ctx.match.phase, "done");
+  assert.equal(ctx.b.last("result").yourReason, "knees down");
+});
+
+test("small knee movement inside the calibration margin is fine", () => {
+  const ctx = setup();
+  startLive(ctx);
+  ctx.step(BASELINE_FRAMES * 100 + 2_000, { id_a: planking, id_b: planking });
+  ctx.step(5_000, { id_a: planking, id_b: sunkKnees(0.02) });
+  assert.equal(ctx.match.phase, "live");
 });
