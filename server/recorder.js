@@ -5,26 +5,24 @@ import { measurePlank } from "../shared/plank.js";
 const MAX_FRAMES = 400;
 const KEEP_REPORTS = 60;
 
-function round(value) {
-  return Math.round(value * 10) / 10;
-}
+const METRICS = ["size", "frontal", "torsoTilt", "upperArmFromVertical", "armDrop", "hipLift", "kneeRise", "thigh", "knee"];
 
 function median(values) {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
-  return round(sorted[Math.floor(sorted.length / 2)]);
+  return Math.round(sorted[Math.floor(sorted.length / 2)] * 100) / 100;
 }
 
 export class Recorder {
   frames = [];
   #reasons = {};
-  #metrics = { upper: [], legs: [], size: [], tilt: [], hip: [], knee: [] };
+  #metrics = Object.fromEntries(METRICS.map((key) => [key, []]));
 
   add(phase, at, frame, aspect, world, reason) {
     this.#reasons[reason] = (this.#reasons[reason] ?? 0) + 1;
     if (frame) {
       const m = measurePlank(frame, aspect, world);
-      for (const key of Object.keys(this.#metrics)) this.#metrics[key].push(["upper", "legs", "size"].includes(key) ? m[key] * 100 : m[key]);
+      for (const key of METRICS) this.#metrics[key].push(m[key]);
     }
     this.frames.push({ phase, at, aspect, reason, frame, world });
     if (this.frames.length > MAX_FRAMES) this.frames.shift();
@@ -33,7 +31,7 @@ export class Recorder {
   summary() {
     return {
       reasons: this.#reasons,
-      medians: Object.fromEntries(Object.entries(this.#metrics).map(([key, values]) => [key, median(values)])),
+      medians: Object.fromEntries(METRICS.map((key) => [key, median(this.#metrics[key])])),
     };
   }
 }

@@ -8,21 +8,41 @@ function reason(options) {
   return assessPlank(frame, ASPECT, world).reason;
 }
 
+function reasonFor(edit) {
+  const { frame, world } = plankPose();
+  edit(frame);
+  return assessPlank(frame, ASPECT, world).reason;
+}
+
+const LYING_FLAT = { shoulder: [-0.6, 0], elbow: [-0.9, 0.02], wrist: [-1.1, 0.03], hip: [0, 0], knee: [0.45, 0], ankle: [0.9, 0] };
+const SPHINX = { shoulder: [-0.6, -0.25], elbow: [-0.6, 0], wrist: [-0.35, 0.02], hip: [0, 0], knee: [0.45, 0], ankle: [0.9, 0] };
+
 test("a straight plank filmed from the side holds", () => {
-  assert.equal(reason({ view: "side" }), "holding");
+  assert.equal(reason(), "holding");
 });
 
-test("a plank filmed head-on holds", () => {
-  assert.equal(reason({ view: "front" }), "holding");
+test("a straight-arm plank holds", () => {
+  assert.equal(reason({ place: { elbow: [-0.6, 0.12], wrist: [-0.6, 0.3] } }), "holding");
 });
 
-test("head-on, legs are not judged, so a kneel passes in casual mode", () => {
-  assert.equal(reason({ view: "front", place: { knee: [0.1, 0.45], ankle: [0.55, 0.45] } }), "holding");
-  assert.equal(reason({ view: "front", bend: { knee: 0.35 } }), "holding");
+test("feet out of frame are fine", () => {
+  assert.equal(reason({ visibility: { ankle: 0.05 } }), "holding");
 });
 
-test("standing up fails head-on too", () => {
-  assert.equal(reason({ view: "front", standing: true }), "get horizontal");
+test("a camera facing the player asks to move to the side", () => {
+  assert.equal(reason({ view: "front" }), "move the phone more to your side");
+});
+
+test("lying flat on the floor fails", () => {
+  assert.equal(reason({ place: LYING_FLAT }), "get up on your elbows or hands");
+});
+
+test("propped on the elbows with hips on the floor fails", () => {
+  assert.equal(reason({ place: SPHINX }), "lift your hips off the floor");
+});
+
+test("throwing the legs up fails", () => {
+  assert.equal(reason({ place: { knee: [0.3, -0.35], ankle: [0.5, -0.7] } }), "legs down");
 });
 
 test("sagging hips fail", () => {
@@ -33,34 +53,22 @@ test("piked hips fail", () => {
   assert.equal(reason({ bend: { hip: -0.35 } }), "hips too high");
 });
 
-test("knees on the floor fail", () => {
+test("knees on the floor fail, with or without the feet in view", () => {
   assert.equal(reason({ bend: { knee: 0.35 } }), "knees down");
   assert.equal(reason({ place: { knee: [0.1, 0.45], ankle: [0.55, 0.45] } }), "knees down");
-});
-
-test("legs the model folds toward the head are skipped instead of failing", () => {
-  assert.equal(reason({ place: { knee: [-0.35, 0.2], ankle: [-0.15, 0.3] } }), "holding");
-});
-
-test("feet out of frame are fine as long as the knees show", () => {
-  assert.equal(reason({ visibility: { ankle: 0.05 } }), "holding");
-  assert.equal(reason({ visibility: { ankle: 0.05 }, place: { knee: [0.1, 0.45] } }), "knees down");
+  assert.equal(reason({ place: { knee: [0.1, 0.45] }, visibility: { ankle: 0.05 } }), "knees down");
 });
 
 test("standing up fails", () => {
   assert.equal(reason({ standing: true }), "get horizontal");
 });
 
-test("arms above the shoulders fail", () => {
-  assert.equal(reason({ bend: { elbow: -0.6 } }), "arms under your shoulders");
-});
-
-test("legs fully out of frame still hold", () => {
-  assert.equal(reason({ visibility: { knee: 0.1, ankle: 0.1 } }), "holding");
-});
-
-test("hidden shoulders fail", () => {
-  assert.equal(reason({ visibility: { shoulder: 0.2 } }), "shoulders and hips not in frame");
+test("framing hints say what is missing and how to fix it", () => {
+  const set = (frame, indices, point) => indices.forEach((i) => (frame[i] = [...point]));
+  assert.equal(reasonFor((f) => set(f, [23, 24], [0.5, 1.2, 0.1])), "hips below the picture, tilt the phone down");
+  assert.equal(reasonFor((f) => set(f, [11, 12], [0.3, -0.1, 0.1])), "shoulders above the picture, tilt the phone up");
+  assert.equal(reasonFor((f) => set(f, [25, 26], [1.1, 0.6, 0.1])), "knees cut off, move the phone back");
+  assert.equal(reasonFor((f) => set(f, [25, 26], [0.7, 0.6, 0.2])), "can't see your knees clearly");
 });
 
 test("a body too far away fails", () => {

@@ -6,14 +6,23 @@ const HIPS = [23, 24];
 const KNEES = [25, 26];
 const ANKLES = [27, 28];
 
-const MIN_UPPER_VISIBILITY = 0.5;
-const MIN_LIMB_VISIBILITY = 0.5;
-const MIN_SIZE = 0.15;
-const MAX_FRONTAL_RATIO = 1.1;
+const MIN_VISIBILITY = 0.5;
+const MIN_SIZE = 0.2;
+const MAX_FRONTAL_RATIO = 1.0;
 const MAX_TORSO_TILT_DEG = 45;
+const MAX_UPPER_ARM_DEG = 40;
+const MIN_ARM_DROP_M = 0.12;
+const MIN_HIP_LIFT_M = 0.08;
+const MAX_KNEE_RISE_M = 0.15;
 const MIN_THIGH_DEG = 140;
 const MIN_KNEE_DEG = 120;
 const PIKE_RISE_M = 0.12;
+
+const PARTS = [
+  ["shoulders", SHOULDERS],
+  ["hips", HIPS],
+  ["knees", KNEES],
+];
 
 function inRange(value, low, high) {
   return Number.isFinite(value) && value >= low && value <= high;
@@ -82,6 +91,19 @@ function screenSize(frame, aspect) {
   return Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
 }
 
+function framingProblem(frame) {
+  for (const [label, pair] of PARTS) {
+    if (bestVisibility(frame, pair) >= MIN_VISIBILITY) continue;
+    const x = (frame[pair[0]][0] + frame[pair[1]][0]) / 2;
+    const y = (frame[pair[0]][1] + frame[pair[1]][1]) / 2;
+    if (y > 1) return `${label} below the picture, tilt the phone down`;
+    if (y < 0) return `${label} above the picture, tilt the phone up`;
+    if (x < 0 || x > 1) return `${label} cut off, move the phone back`;
+    return `can't see your ${label} clearly`;
+  }
+  return null;
+}
+
 export function measurePlank(frame, aspect, world) {
   const shoulder = mid(world, SHOULDERS);
   const elbow = mid(world, ELBOWS);
@@ -90,36 +112,39 @@ export function measurePlank(frame, aspect, world) {
   const ankle = mid(world, ANKLES);
   const thighLine = sub(knee, shoulder);
   const t = dot(sub(hip, shoulder), thighLine) / (dot(thighLine, thighLine) || 1e-6);
-  const towardHead = sub(shoulder, hip);
+  const upperArm = sub(elbow, shoulder);
   return {
-    upper: Math.min(bestVisibility(frame, SHOULDERS), bestVisibility(frame, HIPS)),
-    elbows: bestVisibility(frame, ELBOWS),
-    knees: bestVisibility(frame, KNEES),
+    framing: framingProblem(frame),
     ankles: bestVisibility(frame, ANKLES),
-    legsFolded: dot(sub(knee, hip), towardHead) > 0 || dot(sub(ankle, hip), towardHead) > 0,
     size: screenSize(frame, aspect),
     frontal: frontalRatio(frame, aspect),
     torsoTilt: tiltOf(sub(hip, shoulder)),
+    upperArmFromVertical: (Math.acos(Math.max(-1, Math.min(1, upperArm[1] / (norm(upperArm) || 1e-6)))) * 180) / Math.PI,
+    armDrop: elbow[1] - shoulder[1],
+    hipLift: elbow[1] - hip[1],
+    kneeRise: Math.min(hip[1], shoulder[1]) - knee[1],
     thigh: angleAt(shoulder, hip, knee),
     knee: angleAt(hip, knee, ankle),
     hipsLow: hip[1] > shoulder[1] + t * thighLine[1],
     hipsHigh: hip[1] < shoulder[1] - PIKE_RISE_M,
-    armsDown: elbow[1] > shoulder[1],
   };
 }
 
 export function assessPlank(frame, aspect, world) {
   const m = measurePlank(frame, aspect, world);
-  if (m.upper < MIN_UPPER_VISIBILITY) return { ok: false, reason: "shoulders and hips not in frame" };
+  if (m.framing) return { ok: false, reason: m.framing };
   if (m.size < MIN_SIZE) return { ok: false, reason: "move closer to the camera" };
+  if (m.frontal > MAX_FRONTAL_RATIO) return { ok: false, reason: "move the phone more to your side" };
   if (m.torsoTilt > MAX_TORSO_TILT_DEG) return { ok: false, reason: "get horizontal" };
-  if (m.elbows >= MIN_LIMB_VISIBILITY && !m.armsDown) return { ok: false, reason: "arms under your shoulders" };
-  const legsReadable = m.frontal <= MAX_FRONTAL_RATIO && !m.legsFolded && m.knees >= MIN_LIMB_VISIBILITY;
-  if (!legsReadable) return { ok: true, reason: "holding" };
+  if (m.armDrop < MIN_ARM_DROP_M || m.upperArmFromVertical > MAX_UPPER_ARM_DEG) {
+    return { ok: false, reason: "get up on your elbows or hands" };
+  }
+  if (m.kneeRise > MAX_KNEE_RISE_M) return { ok: false, reason: "legs down" };
   if (m.thigh < MIN_THIGH_DEG) {
     if (m.hipsLow) return { ok: false, reason: "hips sagging" };
     return { ok: false, reason: m.hipsHigh ? "hips too high" : "knees down" };
   }
-  if (m.ankles >= MIN_LIMB_VISIBILITY && m.knee < MIN_KNEE_DEG) return { ok: false, reason: "knees down" };
+  if (m.ankles >= MIN_VISIBILITY && m.knee < MIN_KNEE_DEG) return { ok: false, reason: "knees down" };
+  if (m.hipLift < MIN_HIP_LIFT_M) return { ok: false, reason: "lift your hips off the floor" };
   return { ok: true, reason: "holding" };
 }
