@@ -17,6 +17,8 @@ const MAX_KNEE_RISE_M = 0.15;
 const MIN_THIGH_DEG = 140;
 const MIN_KNEE_DEG = 120;
 const PIKE_RISE_M = 0.12;
+const PIKE_LINE_M = 0.1;
+const PIKE_ABOVE_SHOULDERS_M = 0.05;
 
 const PARTS = [
   ["shoulders", SHOULDERS],
@@ -127,6 +129,8 @@ export function measurePlank(frame, aspect, world) {
     thigh: angleAt(shoulder, hip, knee),
     knee: angleAt(hip, knee, ankle),
     hipsLow: hip[1] > shoulder[1] + t * thighLine[1],
+    hipAboveLine: shoulder[1] + t * thighLine[1] - hip[1],
+    hipAboveShoulders: shoulder[1] - hip[1],
     hipsHigh: hip[1] < shoulder[1] - PIKE_RISE_M,
   };
 }
@@ -141,6 +145,7 @@ export function assessPlank(frame, aspect, world) {
     return { ok: false, reason: "get up on your elbows or hands" };
   }
   if (m.kneeRise > MAX_KNEE_RISE_M) return { ok: false, reason: "legs down" };
+  if (m.hipAboveLine > PIKE_LINE_M && m.hipAboveShoulders > PIKE_ABOVE_SHOULDERS_M) return { ok: false, reason: "hips too high" };
   if (m.thigh < MIN_THIGH_DEG) {
     if (m.hipsLow) return { ok: false, reason: "hips sagging" };
     return { ok: false, reason: m.hipsHigh ? "hips too high" : "knees down" };

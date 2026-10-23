@@ -53,6 +53,14 @@ test("piked hips fail", () => {
   assert.equal(reason({ bend: { hip: -0.35 } }), "hips too high");
 });
 
+test("a slight pike bent at the waist fails even when the hip angle looks fine", () => {
+  assert.equal(reason({ bend: { hip: -0.12 } }), "hips too high");
+});
+
+test("hips a little above the shoulders but in line with the legs still hold", () => {
+  assert.equal(reason({ bend: { hip: -0.06 } }), "holding");
+});
+
 test("knees on the floor fail, with or without the feet in view", () => {
   assert.equal(reason({ bend: { knee: 0.35 } }), "knees down");
   assert.equal(reason({ place: { knee: [0.1, 0.45], ankle: [0.55, 0.45] } }), "knees down");
