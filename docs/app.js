@@ -11,6 +11,9 @@ const ui = {
   name: $("name"),
   play: $("play"),
   practice: $("practice"),
+  tune: $("tune"),
+  example: $("example"),
+  record: $("record"),
   boardRows: $("board-rows"),
   theirVideo: $("their-video"),
   myVideo: $("my-video"),
@@ -62,6 +65,7 @@ const secret = loadSecret();
 let socket = null;
 let greeted = false;
 let mode = null;
+let example = null;
 let camera = null;
 let room = null;
 let state = null;
@@ -105,9 +109,13 @@ function sayHello() {
   send({ t: "hello", name: ui.name.value.trim(), secret });
 }
 
+function startMessage() {
+  return mode === "practice" ? { t: "practice", example } : { t: mode };
+}
+
 function start(next) {
   mode = next;
-  if (greeted) send({ t: mode });
+  if (greeted) send(startMessage());
   else sayHello();
 }
 
@@ -118,7 +126,7 @@ function handle(msg) {
     case "welcome":
       greeted = true;
       renderBoard(msg.board);
-      if (mode) send({ t: mode });
+      if (mode) send(startMessage());
       return;
     case "queued":
       return showWaiting("Finding an opponent...");
@@ -175,9 +183,10 @@ function formatTime(ms) {
 }
 
 function resetHomeButtons() {
-  ui.play.disabled = ui.practice.disabled = false;
+  ui.play.disabled = ui.practice.disabled = ui.record.disabled = false;
   ui.play.textContent = "PLAY";
   ui.practice.textContent = "TEST PLANK SOLO";
+  ui.record.textContent = "RECORD EXAMPLE";
 }
 
 function showHome() {
@@ -221,7 +230,7 @@ async function begin(next, button) {
   unlockAudio();
   if (!ui.form.reportValidity()) return;
   storage.set("plankd.name", ui.name.value.trim());
-  ui.play.disabled = ui.practice.disabled = true;
+  ui.play.disabled = ui.practice.disabled = ui.record.disabled = true;
   button.textContent = "STARTING CAMERA...";
   try {
     await startCamera();
@@ -237,14 +246,25 @@ async function begin(next, button) {
 
 ui.form.addEventListener("submit", (event) => {
   event.preventDefault();
+  example = null;
   begin("queue", ui.play);
 });
 
-ui.practice.addEventListener("click", () => begin("practice", ui.practice));
+ui.practice.addEventListener("click", () => {
+  example = null;
+  begin("practice", ui.practice);
+});
+
+ui.record.addEventListener("click", () => {
+  example = ui.example.value;
+  begin("practice", ui.record);
+});
+
+ui.tune.classList.toggle("hidden", !new URLSearchParams(location.search).has("tune"));
 
 async function joinMatch(msg) {
   ui.arena.classList.remove("waiting");
-  ui.opponent.textContent = msg.practice ? "Practice" : `vs ${msg.opponent}`;
+  ui.opponent.textContent = msg.example ? `Recording: ${msg.example}` : msg.practice ? "Practice" : `vs ${msg.opponent}`;
   ui.sub.textContent = "Connecting video...";
   wasHolding = null;
   lastSecond = null;
@@ -320,13 +340,13 @@ function onResult(msg) {
   state = null;
   leaveRoom();
   if (!ui.arena.classList.contains("active")) return;
-  const titles = { win: "YOU WIN", loss: "YOU LOSE", draw: "DRAW", practice: formatTime(msg.yourMs) };
+  const titles = { win: "YOU WIN", loss: "YOU LOSE", draw: "DRAW", practice: msg.example ? "SAVED" : formatTime(msg.yourMs) };
   ui.resultTitle.textContent = titles[msg.outcome];
   ui.resultTitle.className = `result-title ${msg.outcome}`;
-  ui.resultTimes.textContent = msg.practice ? "Practice hold" : `You ${formatTime(msg.yourMs)}  ·  Them ${formatTime(msg.theirMs)}`;
+  ui.resultTimes.textContent = msg.example ? `Example recorded: ${msg.example}` : msg.practice ? "Practice hold" : `You ${formatTime(msg.yourMs)}  ·  Them ${formatTime(msg.theirMs)}`;
   const why = msg.outcome === "win" ? `They dropped: ${msg.theirReason}` : msg.yourReason ? `You dropped: ${msg.yourReason}` : "";
   ui.resultWhy.textContent = why;
-  ui.again.textContent = msg.practice ? "TRY AGAIN" : "PLAY AGAIN";
+  ui.again.textContent = msg.example ? "RECORD AGAIN" : msg.practice ? "TRY AGAIN" : "PLAY AGAIN";
   ui.result.classList.remove("hidden");
   ui.ready.classList.add("hidden");
   ui.yourStatus.textContent = "";
@@ -335,7 +355,8 @@ function onResult(msg) {
   ui.sub.textContent = "";
   if (msg.outcome === "win") [660, 880, 1320].forEach((f, i) => setTimeout(() => beep(f, 180), i * 160));
   else if (msg.outcome !== "practice") beep(180, 600, 0.3);
-  say(msg.practice ? `You held ${Math.round(msg.yourMs / 1000)} seconds` : titles[msg.outcome].toLowerCase(), 0);
+  if (msg.example) say("Example saved", 0);
+  else say(msg.practice ? `You held ${Math.round(msg.yourMs / 1000)} seconds` : titles[msg.outcome].toLowerCase(), 0);
 }
 
 function tick() {

@@ -11,6 +11,8 @@ export const FRAME_TTL_MS = 1_500;
 export const SILENCE_MS = 3_000;
 export const READY_TIMEOUT_MS = 90_000;
 export const MAX_MS = 30 * 60_000;
+export const EXAMPLE_MS = 20_000;
+export const EXAMPLE_LABELS = ["perfect plank", "knees resting", "hips too high", "hips sagging", "lying down", "other cheat"];
 export const FROZEN_FRAMES = 12;
 const FRAME_MIN_GAP_MS = 60;
 const SMOOTHING_FRAMES = 5;
@@ -113,9 +115,10 @@ export class Match {
   #ticks = 0;
   #createdAt;
 
-  constructor(entries, { room, livekitUrl, onEnd, onReport = () => {}, clock = Date.now, autoTick = true }) {
+  constructor(entries, { room, livekitUrl, onEnd, onReport = () => {}, example = null, clock = Date.now, autoTick = true }) {
     this.room = room;
     this.practice = entries.length === 1;
+    this.example = this.practice ? example : null;
     this.#sides = entries.map(({ player, identity }) => new Side(player, identity));
     this.#clock = clock;
     this.#onEnd = onEnd;
@@ -123,7 +126,7 @@ export class Match {
     this.#createdAt = clock();
     if (autoTick) this.#timer = setInterval(() => this.tick(), TICK_MS);
     entries.forEach(({ player, token }, i) => {
-      player.send({ t: "matched", practice: this.practice, opponent: entries[1 - i]?.player.name ?? null, livekitUrl, token });
+      player.send({ t: "matched", practice: this.practice, example: this.example, opponent: entries[1 - i]?.player.name ?? null, livekitUrl, token });
     });
   }
 
@@ -190,6 +193,11 @@ export class Match {
   }
 
   #judge(now) {
+    if (this.example) {
+      for (const side of this.#sides) if (side.feed.read(now).ok) side.lastHolding = now;
+      if (now - this.startedAt >= EXAMPLE_MS) this.#finish(now);
+      return;
+    }
     for (const side of this.#sides) {
       if (now - Math.max(side.feed.at, this.startedAt) > SILENCE_MS) {
         side.out = "camera feed lost";
@@ -231,6 +239,7 @@ export class Match {
       r.player.send({
         t: "result",
         practice: this.practice,
+        example: this.example,
         outcome: r.outcome,
         yourMs: r.holdMs,
         theirMs: results[1 - i]?.holdMs ?? null,
@@ -250,6 +259,7 @@ export class Match {
   #report(ending) {
     this.#onReport({
       room: this.room,
+      example: this.example,
       ending,
       startedAt: this.startedAt,
       sides: this.#sides.map((s) => ({ identity: s.identity, name: s.player.name, out: s.out, ...s.recorder.summary() })),

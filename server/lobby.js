@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { newIdentity, newRoomName } from "./livekit.js";
-import { Match } from "./match.js";
+import { EXAMPLE_LABELS, Match } from "./match.js";
 
 const NAME_RE = /^[A-Za-z0-9_ ]{2,16}$/;
 const SECRET_RE = /^[a-f0-9]{64}$/;
@@ -66,7 +66,7 @@ export class Lobby {
       case "queue":
         return this.#enqueue(player);
       case "practice":
-        return this.#practice(player);
+        return this.#practice(player, msg.example ?? null);
       case "leave":
         return this.#dequeue(player);
       case "quit":
@@ -111,14 +111,15 @@ export class Lobby {
     this.#start([opponent, player]);
   }
 
-  #practice(player) {
+  #practice(player, example) {
     if (player.match || player.pairing || this.#queue.includes(player)) return;
+    if (example !== null && !EXAMPLE_LABELS.includes(example)) return player.send({ t: "error", message: "unknown example label" });
     if (!this.#judge.online) return player.send({ t: "error", message: "the judge is offline, try again in a minute" });
-    this.#start([player]);
+    this.#start([player], example);
   }
 
-  #start(players) {
-    this.#open(players).catch((err) => {
+  #start(players, example = null) {
+    this.#open(players, example).catch((err) => {
       console.error("starting match failed:", err);
       for (const p of players) {
         p.pairing = false;
@@ -127,7 +128,7 @@ export class Lobby {
     });
   }
 
-  async #open(players) {
+  async #open(players, example) {
     for (const p of players) p.pairing = true;
     const room = newRoomName();
     const entries = await Promise.all(
@@ -147,6 +148,7 @@ export class Lobby {
       livekitUrl: this.#livekitUrl,
       onEnd: (m, results) => this.#ended(m, results),
       onReport: this.#onReport,
+      example,
     });
     for (const p of players) p.match = match;
     this.#judge.watch(room, match.identities, match);

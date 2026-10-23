@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { BASELINE_FRAMES, COUNTDOWN_MS, FROZEN_FRAMES, GRACE_MS, KNEE_GRACE_MS, Match, SILENCE_MS } from "../server/match.js";
+import { BASELINE_FRAMES, COUNTDOWN_MS, EXAMPLE_MS, FROZEN_FRAMES, GRACE_MS, KNEE_GRACE_MS, Match, SILENCE_MS } from "../server/match.js";
 import { ASPECT, fakeClock, fakePlayer, plankPose } from "./fixtures.js";
 
 function setup() {
@@ -196,4 +196,38 @@ test("small knee movement inside the calibration margin is fine", () => {
   ctx.step(BASELINE_FRAMES * 100 + 2_000, { id_a: planking, id_b: planking });
   ctx.step(5_000, { id_a: planking, id_b: sunkKnees(0.02) });
   assert.equal(ctx.match.phase, "live");
+});
+
+test("an example recording runs its full length without knocking the player out", () => {
+  const clock = fakeClock();
+  const a = fakePlayer("alice");
+  const reports = [];
+  const match = new Match([{ player: a, identity: "id_a", token: "t" }], {
+    room: "ex",
+    livekitUrl: "ws://lk",
+    onEnd: () => {},
+    onReport: (r) => reports.push(r),
+    example: "knees resting",
+    clock: clock.now,
+    autoTick: false,
+  });
+  assert.equal(a.last("matched").example, "knees resting");
+  let jitter = 0;
+  const run = (ms, pose) => {
+    const end = clock.now() + ms;
+    while (clock.now() < end) {
+      clock.advance(100);
+      jitter = jitter === 0 ? 0.001 : 0;
+      const { frame, world } = pose(jitter);
+      match.judgePose("id_a", frame, ASPECT, world);
+      match.tick();
+    }
+  };
+  run(200, (j) => plankPose({ jitter: j }));
+  match.ready(a);
+  run(COUNTDOWN_MS + 10_000, (j) => plankPose({ bend: { knee: 0.35 }, jitter: j }));
+  assert.equal(match.phase, "live");
+  run(EXAMPLE_MS - 10_000 + 300, (j) => plankPose({ bend: { knee: 0.35 }, jitter: j }));
+  assert.equal(a.last("result").example, "knees resting");
+  assert.equal(reports[0].example, "knees resting");
 });

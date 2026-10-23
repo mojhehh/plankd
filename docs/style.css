@@ -97,6 +97,28 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
   font-size: 1.15rem;
 }
 
+.tune {
+  display: grid;
+  gap: 10px;
+  margin-top: 28px;
+  padding: 16px;
+  border: 1px dashed var(--accent);
+  border-radius: 6px;
+}
+
+.tune h2 { font-family: var(--display); font-size: 1.2rem; margin: 0; }
+.tune p { margin: 0; }
+
+.tune select {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 14px;
+  font: inherit;
+  font-size: 1.05rem;
+}
+
 .setup {
   margin: 28px 0;
   padding: 16px 16px 16px 36px;

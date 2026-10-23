@@ -44,9 +44,11 @@ async function prune(dir) {
 export function saveReport(dir, report) {
   const { frames, ...summary } = report;
   console.log("match report:", JSON.stringify(summary));
-  const file = path.join(dir, `${new Date().toISOString().replace(/[:.]/g, "-")}_${report.room}.json`);
-  mkdir(dir, { recursive: true })
+  const target = report.example ? path.join(dir, "examples") : dir;
+  const label = report.example ? `_${report.example.replace(/[^a-z]+/g, "-")}` : "";
+  const file = path.join(target, `${new Date().toISOString().replace(/[:.]/g, "-")}_${report.room}${label}.json`);
+  mkdir(target, { recursive: true })
     .then(() => writeFile(file, JSON.stringify(report)))
-    .then(() => prune(dir))
+    .then(() => (report.example ? null : prune(dir)))
     .catch((err) => console.error("saving match report failed:", err));
 }
