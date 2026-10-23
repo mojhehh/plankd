@@ -13,8 +13,8 @@ test("a straight plank filmed from the side holds", () => {
 });
 
 test("a camera facing the player is refused, since kneeling looks like planking head-on", () => {
-  assert.equal(reason({ view: "front" }), "turn the phone to see your side");
-  assert.equal(reason({ view: "front", place: { knee: [0.1, 0.45], ankle: [0.55, 0.45] } }), "turn the phone to see your side");
+  assert.equal(reason({ view: "front" }), "camera sees your face, move it beside you");
+  assert.equal(reason({ view: "front", place: { knee: [0.1, 0.45], ankle: [0.55, 0.45] } }), "camera sees your face, move it beside you");
 });
 
 test("sagging hips fail", () => {

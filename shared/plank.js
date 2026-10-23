@@ -112,7 +112,7 @@ export function assessPlank(frame, aspect, world) {
   if (m.upper < MIN_UPPER_VISIBILITY) return { ok: false, reason: "upper body not in frame" };
   if (m.legs < MIN_LEG_VISIBILITY) return { ok: false, reason: "legs not in frame" };
   if (m.size < MIN_SIZE) return { ok: false, reason: "move closer to the camera" };
-  if (m.frontal > MAX_FRONTAL_RATIO) return { ok: false, reason: "turn the phone to see your side" };
+  if (m.frontal > MAX_FRONTAL_RATIO) return { ok: false, reason: "camera sees your face, move it beside you" };
   if (m.torsoTilt > MAX_TORSO_TILT_DEG) return { ok: false, reason: "get horizontal" };
   if (!m.armsDown) return { ok: false, reason: "arms under your shoulders" };
   if (m.legsFolded) return { ok: false, reason: "show your knees" };
