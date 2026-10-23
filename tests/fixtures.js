@@ -32,8 +32,8 @@ const JOINTS = {
   ankle: [27, 28],
 };
 
-export function plankPose({ view = "side", standing = false, bend = {}, visibility = {}, scale = 1, jitter = 0 } = {}) {
-  const base = standing ? STANDING : PLANK;
+export function plankPose({ view = "side", standing = false, bend = {}, place = {}, visibility = {}, scale = 1, jitter = 0 } = {}) {
+  const base = { ...(standing ? STANDING : PLANK), ...place };
   const world = Array.from({ length: LANDMARK_COUNT }, () => [0, 0, 0]);
   const frame = Array.from({ length: LANDMARK_COUNT }, () => [0.5, 0.5, 0.2]);
   for (const [name, indices] of Object.entries(JOINTS)) {

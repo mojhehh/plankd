@@ -38,6 +38,21 @@ for (const view of ["side", "front"]) {
   });
 }
 
+test("legs the model folds onto the arms are ignored instead of failing the plank", () => {
+  const onArms = { knee: [-0.35, 0.2], ankle: [-0.15, 0.3] };
+  const { frame, world } = plankPose({ view: "front", place: onArms });
+  assert.deepEqual(assessPlank(frame, ASPECT, world), { ok: true, reason: "holding", legsTrusted: false });
+});
+
+test("ignoring folded legs still catches a torso that is not level", () => {
+  const onArms = { knee: [-0.35, 0.2], ankle: [-0.15, 0.3] };
+  assert.equal(reason({ view: "front", place: { ...onArms, shoulder: [-0.3, -0.45], elbow: [-0.3, -0.1] } }), "get horizontal");
+});
+
+test("real kneeling with legs behind the hips is still caught head-on", () => {
+  assert.equal(reason({ view: "front", place: { knee: [0.1, 0.45], ankle: [0.55, 0.45] } }), "knees down");
+});
+
 test("arms above the shoulders fail", () => {
   assert.equal(reason({ bend: { elbow: -0.6 } }), "arms under your shoulders");
 });

@@ -254,24 +254,6 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
 .your-status.ok { background: var(--good); color: #04150b; }
 .your-status.bad { background: var(--bad); color: #1a0303; }
 
-.rotate {
-  display: none;
-  position: absolute;
-  top: 56px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--accent);
-  color: #0b0b0c;
-  font-weight: 800;
-  padding: 8px 14px;
-  border-radius: 4px;
-  white-space: nowrap;
-}
-
-@media (orientation: portrait) {
-  #arena .rotate { display: block; }
-}
-
 .result {
   position: absolute;
   inset: 0;
