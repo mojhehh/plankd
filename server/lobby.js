@@ -11,10 +11,12 @@ export class Lobby {
   #tokens;
   #judge;
   #livekitUrl;
+  #onReport;
   #online = new Map();
   #queue = [];
 
-  constructor({ board, tokens, judge, livekitUrl }) {
+  constructor({ board, tokens, judge, livekitUrl, onReport }) {
+    this.#onReport = onReport;
     this.#board = board;
     this.#tokens = tokens;
     this.#judge = judge;
@@ -140,7 +142,12 @@ export class Lobby {
       if (players.length > 1) for (const p of players) if (!gone.includes(p)) this.#enqueue(p);
       return;
     }
-    const match = new Match(entries, { room, livekitUrl: this.#livekitUrl, onEnd: (m, results) => this.#ended(m, results) });
+    const match = new Match(entries, {
+      room,
+      livekitUrl: this.#livekitUrl,
+      onEnd: (m, results) => this.#ended(m, results),
+      onReport: this.#onReport,
+    });
     for (const p of players) p.match = match;
     this.#judge.watch(room, match.identities, match);
   }

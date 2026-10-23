@@ -11,6 +11,7 @@ import { JudgeLink } from "./judge.js";
 import { Leaderboard } from "./leaderboard.js";
 import { Tokens } from "./livekit.js";
 import { Lobby } from "./lobby.js";
+import { saveReport } from "./recorder.js";
 import { isRtcPath, RtcProxy } from "./rtcproxy.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -19,7 +20,14 @@ const config = loadConfig();
 const tokens = new Tokens(config.livekit);
 const judge = new JudgeLink(tokens, config.livekit.internalUrl);
 const board = await Leaderboard.open(path.join(root, "data", "players.json"));
-const lobby = new Lobby({ board, tokens, judge, livekitUrl: config.livekit.publicUrl });
+const diagnostics = path.join(root, "data", "diagnostics");
+const lobby = new Lobby({
+  board,
+  tokens,
+  judge,
+  livekitUrl: config.livekit.publicUrl,
+  onReport: (report) => saveReport(diagnostics, report),
+});
 const rtc = new RtcProxy(config.livekit.internalUrl);
 
 const app = express();

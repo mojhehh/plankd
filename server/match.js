@@ -1,4 +1,5 @@
 import { assessPlank, isValidAspect, isValidFrame } from "../shared/plank.js";
+import { Recorder } from "./recorder.js";
 
 export const COUNTDOWN_MS = 10_000;
 export const GRACE_MS = 2_500;
@@ -54,6 +55,7 @@ function sameFrame(a, b) {
 class Side {
   ready = false;
   feed = new Feed();
+  recorder = new Recorder();
   lastHolding = 0;
   out = null;
 
@@ -70,16 +72,18 @@ export class Match {
   #sides;
   #clock;
   #onEnd;
+  #onReport;
   #timer = null;
   #ticks = 0;
   #createdAt;
 
-  constructor(entries, { room, livekitUrl, onEnd, clock = Date.now, autoTick = true }) {
+  constructor(entries, { room, livekitUrl, onEnd, onReport = () => {}, clock = Date.now, autoTick = true }) {
     this.room = room;
     this.practice = entries.length === 1;
     this.#sides = entries.map(({ player, identity }) => new Side(player, identity));
     this.#clock = clock;
     this.#onEnd = onEnd;
+    this.#onReport = onReport;
     this.#createdAt = clock();
     if (autoTick) this.#timer = setInterval(() => this.tick(), TICK_MS);
     entries.forEach(({ player, token }, i) => {
@@ -123,6 +127,7 @@ export class Match {
     const now = this.#clock();
     if (now - side.feed.at < FRAME_MIN_GAP_MS) return;
     side.feed.update(frame, aspect, now);
+    side.recorder.add(this.phase, now, frame, aspect, side.feed.reason);
     side.player.send({ t: "skeleton", frame, aspect, ok: side.feed.ok });
   }
 
@@ -206,7 +211,18 @@ export class Match {
     this.#onEnd(this, []);
   }
 
+  #report(ending) {
+    this.#onReport({
+      room: this.room,
+      ending,
+      startedAt: this.startedAt,
+      sides: this.#sides.map((s) => ({ identity: s.identity, name: s.player.name, out: s.out, ...s.recorder.summary() })),
+      frames: Object.fromEntries(this.#sides.map((s) => [s.identity, s.recorder.frames])),
+    });
+  }
+
   #stop() {
+    if (this.phase !== "done") this.#report(this.phase);
     this.phase = "done";
     if (this.#timer) clearInterval(this.#timer);
     this.#timer = null;

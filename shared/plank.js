@@ -51,27 +51,29 @@ function hipsAboveLine(shoulder, hip, ankle) {
   return hip.y < lineY;
 }
 
-export function assessPlank(frame, aspect) {
+export function measurePlank(frame, aspect) {
   const side = sideScore(frame, LEFT) >= sideScore(frame, RIGHT) ? LEFT : RIGHT;
   const p = Object.fromEntries(Object.entries(side).map(([name, i]) => [name, point(frame, i, aspect)]));
+  return {
+    p,
+    visibility: Math.min(...REQUIRED.map((name) => p[name].v)),
+    length: Math.hypot(p.ankle.x - p.shoulder.x, p.ankle.y - p.shoulder.y),
+    tilt: (Math.atan2(Math.abs(p.ankle.y - p.shoulder.y), Math.abs(p.ankle.x - p.shoulder.x)) * 180) / Math.PI,
+    hip: angleAt(p.shoulder, p.hip, p.ankle),
+    knee: angleAt(p.hip, p.knee, p.ankle),
+  };
+}
 
-  if (REQUIRED.some((name) => p[name].v < MIN_VISIBILITY)) {
-    return { ok: false, reason: "whole body not in frame" };
-  }
-
-  const length = Math.hypot(p.ankle.x - p.shoulder.x, p.ankle.y - p.shoulder.y);
-  if (length < MIN_BODY_LENGTH) return { ok: false, reason: "move closer to the camera" };
-
-  const tilt = (Math.atan2(Math.abs(p.ankle.y - p.shoulder.y), Math.abs(p.ankle.x - p.shoulder.x)) * 180) / Math.PI;
-  if (tilt > MAX_TILT_DEG) return { ok: false, reason: "get horizontal" };
-
-  if (angleAt(p.shoulder, p.hip, p.ankle) < MIN_HIP_DEG) {
+export function assessPlank(frame, aspect) {
+  const m = measurePlank(frame, aspect);
+  const { p } = m;
+  if (m.visibility < MIN_VISIBILITY) return { ok: false, reason: "whole body not in frame" };
+  if (m.length < MIN_BODY_LENGTH) return { ok: false, reason: "move closer to the camera" };
+  if (m.tilt > MAX_TILT_DEG) return { ok: false, reason: "get horizontal" };
+  if (m.hip < MIN_HIP_DEG) {
     return { ok: false, reason: hipsAboveLine(p.shoulder, p.hip, p.ankle) ? "hips too high" : "hips sagging" };
   }
-
-  if (angleAt(p.hip, p.knee, p.ankle) < MIN_KNEE_DEG) return { ok: false, reason: "knees down" };
-
+  if (m.knee < MIN_KNEE_DEG) return { ok: false, reason: "knees down" };
   if (p.elbow.y <= p.shoulder.y) return { ok: false, reason: "arms under your shoulders" };
-
   return { ok: true, reason: "holding" };
 }
