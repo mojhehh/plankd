@@ -23,6 +23,7 @@
       <label for="name">Your name</label>
       <input id="name" name="name" autocomplete="nickname" maxlength="16" minlength="2" pattern="[A-Za-z0-9_ ]{2,16}" required placeholder="2-16 letters or numbers">
       <button id="play" type="submit" class="primary">PLAY</button>
+      <button id="practice" type="button" class="secondary">TEST PLANK SOLO</button>
     </form>
 
     <ol class="setup">
@@ -42,6 +43,10 @@
 
   <main id="arena" class="screen">
     <video id="their-video" class="their-video" autoplay playsinline muted></video>
+    <div id="me" class="me">
+      <video id="my-video" autoplay playsinline muted></video>
+      <canvas id="skeleton"></canvas>
+    </div>
     <div id="frame-guide" class="frame-guide"><span>head to heels in here</span></div>
 
     <div class="hud-top">
@@ -57,7 +62,6 @@
     </div>
 
     <div id="your-status" class="your-status"></div>
-    <video id="my-video" class="my-video" autoplay playsinline muted></video>
     <div id="rotate" class="rotate">Turn your phone sideways</div>
 
     <div id="result" class="result hidden">

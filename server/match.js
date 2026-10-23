@@ -76,13 +76,14 @@ export class Match {
 
   constructor(entries, { room, livekitUrl, onEnd, clock = Date.now, autoTick = true }) {
     this.room = room;
+    this.practice = entries.length === 1;
     this.#sides = entries.map(({ player, identity }) => new Side(player, identity));
     this.#clock = clock;
     this.#onEnd = onEnd;
     this.#createdAt = clock();
     if (autoTick) this.#timer = setInterval(() => this.tick(), TICK_MS);
     entries.forEach(({ player, token }, i) => {
-      player.send({ t: "matched", opponent: entries[1 - i].player.name, livekitUrl, token });
+      player.send({ t: "matched", practice: this.practice, opponent: entries[1 - i]?.player.name ?? null, livekitUrl, token });
     });
   }
 
@@ -95,7 +96,7 @@ export class Match {
   }
 
   #other(side) {
-    return this.#sides[0] === side ? this.#sides[1] : this.#sides[0];
+    return this.#sides.find((s) => s !== side) ?? null;
   }
 
   ready(player) {
@@ -122,6 +123,7 @@ export class Match {
     const now = this.#clock();
     if (now - side.feed.at < FRAME_MIN_GAP_MS) return;
     side.feed.update(frame, aspect, now);
+    side.player.send({ t: "skeleton", frame, aspect, ok: side.feed.ok });
   }
 
   judgeFailed() {
@@ -176,8 +178,9 @@ export class Match {
     const results = this.#sides.map((side) => {
       const other = this.#other(side);
       let outcome = "draw";
-      if (side.out && !other.out) outcome = "loss";
-      if (!side.out && other.out) outcome = "win";
+      if (!other) outcome = "practice";
+      else if (side.out && !other.out) outcome = "loss";
+      else if (!side.out && other.out) outcome = "win";
       const holdMs = Math.max(0, (side.out ? side.lastHolding : now) - this.startedAt);
       return { player: side.player, outcome, holdMs };
     });
@@ -186,14 +189,15 @@ export class Match {
       const other = this.#other(side);
       r.player.send({
         t: "result",
+        practice: this.practice,
         outcome: r.outcome,
         yourMs: r.holdMs,
-        theirMs: results[1 - i].holdMs,
+        theirMs: results[1 - i]?.holdMs ?? null,
         yourReason: side.out,
-        theirReason: other.out,
+        theirReason: other?.out ?? null,
       });
     });
-    this.#onEnd(this, results);
+    this.#onEnd(this, this.practice ? [] : results);
   }
 
   #cancel(reason) {
@@ -219,7 +223,7 @@ export class Match {
         countdownEndsAt: this.countdownEndsAt,
         startedAt: this.startedAt,
         you: { ...side.feed.read(now), ready: side.ready },
-        them: { ...other.feed.read(now), ready: other.ready },
+        them: other ? { ...other.feed.read(now), ready: other.ready } : null,
       });
     }
   }

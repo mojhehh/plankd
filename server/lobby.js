@@ -63,6 +63,8 @@ export class Lobby {
     switch (msg.t) {
       case "queue":
         return this.#enqueue(player);
+      case "practice":
+        return this.#practice(player);
       case "leave":
         return this.#dequeue(player);
       case "quit":
@@ -104,32 +106,42 @@ export class Lobby {
       player.send({ t: "queued" });
       return;
     }
-    this.#pair(opponent, player).catch((err) => {
-      console.error("pairing failed:", err);
-      for (const p of [opponent, player]) {
+    this.#start([opponent, player]);
+  }
+
+  #practice(player) {
+    if (player.match || player.pairing || this.#queue.includes(player)) return;
+    if (!this.#judge.online) return player.send({ t: "error", message: "the judge is offline, try again in a minute" });
+    this.#start([player]);
+  }
+
+  #start(players) {
+    this.#open(players).catch((err) => {
+      console.error("starting match failed:", err);
+      for (const p of players) {
         p.pairing = false;
         p.send({ t: "error", message: "couldn't start the match, try again" });
       }
     });
   }
 
-  async #pair(a, b) {
-    a.pairing = b.pairing = true;
+  async #open(players) {
+    for (const p of players) p.pairing = true;
     const room = newRoomName();
     const entries = await Promise.all(
-      [a, b].map(async (player) => {
+      players.map(async (player) => {
         const identity = newIdentity();
         return { player, identity, token: await this.#tokens.player(room, identity, player.name) };
       }),
     );
-    a.pairing = b.pairing = false;
-    const gone = [a, b].filter((p) => p.socket.readyState !== p.socket.OPEN);
+    for (const p of players) p.pairing = false;
+    const gone = players.filter((p) => p.socket.readyState !== p.socket.OPEN);
     if (gone.length) {
-      for (const p of [a, b]) if (!gone.includes(p)) this.#enqueue(p);
+      if (players.length > 1) for (const p of players) if (!gone.includes(p)) this.#enqueue(p);
       return;
     }
     const match = new Match(entries, { room, livekitUrl: this.#livekitUrl, onEnd: (m, results) => this.#ended(m, results) });
-    a.match = b.match = match;
+    for (const p of players) p.match = match;
     this.#judge.watch(room, match.identities, match);
   }
 

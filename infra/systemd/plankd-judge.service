@@ -7,6 +7,7 @@ Wants=network-online.target
 User=plankd
 WorkingDirectory=/opt/plankd/app/judge
 EnvironmentFile=/opt/plankd/app/.env
+Environment=MPLCONFIGDIR=/tmp/matplotlib
 ExecStart=/opt/plankd/app/judge/.venv/bin/python main.py
 Restart=always
 RestartSec=2

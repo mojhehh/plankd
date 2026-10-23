@@ -1,4 +1,4 @@
-const PRODUCTION_BACKEND = "https://plankd.duckdns.org:8443";
+const PRODUCTION_BACKEND = "https://plankd.duckdns.org:8843";
 
 const local = ["localhost", "127.0.0.1"].includes(location.hostname);
 

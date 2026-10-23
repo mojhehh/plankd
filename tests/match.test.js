@@ -127,3 +127,39 @@ test("frames for unknown identities and malformed frames are ignored", () => {
   assert.equal(errors.length, 1);
   assert.match(ctx.match.ready(ctx.a), /can't see your camera/);
 });
+
+test("a solo practice round runs and reports its own hold time", () => {
+  const clock = fakeClock();
+  const a = fakePlayer("alice");
+  const ended = [];
+  const match = new Match([{ player: a, identity: "id_a", token: "tok_a" }], {
+    room: "solo",
+    livekitUrl: "ws://lk",
+    onEnd: (m, results) => ended.push(results),
+    clock: clock.now,
+    autoTick: false,
+  });
+  assert.equal(a.last("matched").practice, true);
+  assert.equal(a.last("matched").opponent, null);
+  let jitter = 0;
+  const run = (ms, frame) => {
+    const end = clock.now() + ms;
+    while (clock.now() < end) {
+      clock.advance(100);
+      jitter = jitter === 0 ? 0.001 : 0;
+      match.judgePose("id_a", frame(jitter), ASPECT);
+      match.tick();
+    }
+  };
+  run(200, (j) => plankFrame({}, j));
+  assert.equal(a.last("skeleton").ok, true);
+  assert.equal(match.ready(a), null);
+  run(COUNTDOWN_MS + 4_000, (j) => plankFrame({}, j));
+  assert.equal(a.last("state").them, null);
+  run(GRACE_MS + 300, (j) => plankFrame({ 23: [0.5, 0.66] }, j));
+  const result = a.last("result");
+  assert.equal(result.outcome, "practice");
+  assert.equal(result.theirMs, null);
+  assert.ok(result.yourMs >= 4_000 && result.yourMs < 4_300);
+  assert.deepEqual(ended, [[]]);
+});

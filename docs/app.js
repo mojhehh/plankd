@@ -1,5 +1,6 @@
 import { createLocalVideoTrack, Room, RoomEvent, Track, VideoPresets } from "./vendor/livekit-client-2.22.4.mjs";
 import { SOCKET_URL } from "./config.js";
+import { drawSkeleton, clearSkeleton } from "./skeleton.js";
 import { beep, keepAwake, releaseAwake, say, unlockAudio } from "./sound.js";
 
 const $ = (id) => document.getElementById(id);
@@ -9,9 +10,11 @@ const ui = {
   form: $("play-form"),
   name: $("name"),
   play: $("play"),
+  practice: $("practice"),
   boardRows: $("board-rows"),
   theirVideo: $("their-video"),
   myVideo: $("my-video"),
+  skeleton: $("skeleton"),
   opponent: $("opponent"),
   theirStatus: $("their-status"),
   big: $("big"),
@@ -58,7 +61,7 @@ function loadSecret() {
 const secret = loadSecret();
 let socket = null;
 let greeted = false;
-let wantQueue = false;
+let mode = null;
 let camera = null;
 let room = null;
 let state = null;
@@ -84,7 +87,7 @@ function connect() {
   socket = new WebSocket(SOCKET_URL);
   socket.addEventListener("open", () => {
     send({ t: "board" });
-    if (wantQueue) sayHello();
+    if (mode) sayHello();
   });
   socket.addEventListener("message", (event) => handle(JSON.parse(event.data)));
   socket.addEventListener("close", () => {
@@ -102,9 +105,9 @@ function sayHello() {
   send({ t: "hello", name: ui.name.value.trim(), secret });
 }
 
-function queue() {
-  wantQueue = true;
-  if (greeted) send({ t: "queue" });
+function start(next) {
+  mode = next;
+  if (greeted) send({ t: mode });
   else sayHello();
 }
 
@@ -115,25 +118,26 @@ function handle(msg) {
     case "welcome":
       greeted = true;
       renderBoard(msg.board);
-      if (wantQueue) send({ t: "queue" });
+      if (mode) send({ t: mode });
       return;
     case "queued":
-      return showSolo("Finding an opponent...");
+      return showWaiting("Finding an opponent...");
     case "matched":
       return joinMatch(msg);
     case "state":
       return onState(msg);
+    case "skeleton":
+      return drawSkeleton(ui.skeleton, ui.myVideo, msg.frame, msg.ok);
     case "result":
       return onResult(msg);
     case "cancelled":
       leaveRoom();
-      if (!wantQueue) return;
+      if (!mode) return;
       toast(msg.reason);
-      return queue();
+      return mode === "queue" ? start("queue") : showHome();
     case "error":
       toast(msg.message);
-      ui.play.disabled = false;
-      ui.play.textContent = "PLAY";
+      resetHomeButtons();
       return;
     default:
       console.warn("unknown message", msg.t);
@@ -170,29 +174,40 @@ function formatTime(ms) {
   return `${minutes}:${seconds}`;
 }
 
+function resetHomeButtons() {
+  ui.play.disabled = ui.practice.disabled = false;
+  ui.play.textContent = "PLAY";
+  ui.practice.textContent = "TEST PLANK SOLO";
+}
+
 function showHome() {
   ui.arena.classList.remove("active");
   ui.home.classList.add("active");
-  ui.play.disabled = false;
-  ui.play.textContent = "PLAY";
-  wantQueue = false;
+  resetHomeButtons();
+  mode = null;
   state = null;
   camera?.stop();
   camera = null;
+  clearSkeleton(ui.skeleton);
   releaseAwake();
 }
 
-function showSolo(text) {
+function showArena() {
   ui.home.classList.remove("active");
   ui.arena.classList.add("active", "solo");
   ui.result.classList.add("hidden");
   ui.ready.classList.add("hidden");
-  ui.opponent.textContent = text;
   ui.theirStatus.textContent = "";
   ui.big.textContent = "";
   ui.sub.textContent = "";
   ui.yourStatus.textContent = "";
   state = null;
+}
+
+function showWaiting(text) {
+  showArena();
+  ui.arena.classList.add("waiting");
+  ui.opponent.textContent = text;
 }
 
 async function startCamera() {
@@ -202,28 +217,34 @@ async function startCamera() {
   return camera;
 }
 
-ui.form.addEventListener("submit", async (event) => {
-  event.preventDefault();
+async function begin(next, button) {
   unlockAudio();
-  const name = ui.name.value.trim();
-  storage.set("plankd.name", name);
-  ui.play.disabled = true;
-  ui.play.textContent = "STARTING CAMERA...";
+  if (!ui.form.reportValidity()) return;
+  storage.set("plankd.name", ui.name.value.trim());
+  ui.play.disabled = ui.practice.disabled = true;
+  button.textContent = "STARTING CAMERA...";
   try {
     await startCamera();
   } catch (err) {
-    ui.play.disabled = false;
-    ui.play.textContent = "PLAY";
+    resetHomeButtons();
     toast(err.name === "NotAllowedError" ? "Camera blocked. Allow camera access and try again." : `Camera failed: ${err.message}`);
     return;
   }
   keepAwake();
-  showSolo("Finding an opponent...");
-  queue();
+  showWaiting(next === "queue" ? "Finding an opponent..." : "Starting practice...");
+  start(next);
+}
+
+ui.form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  begin("queue", ui.play);
 });
 
+ui.practice.addEventListener("click", () => begin("practice", ui.practice));
+
 async function joinMatch(msg) {
-  ui.opponent.textContent = `vs ${msg.opponent}`;
+  ui.arena.classList.remove("waiting");
+  ui.opponent.textContent = msg.practice ? "Practice" : `vs ${msg.opponent}`;
   ui.sub.textContent = "Connecting video...";
   wasHolding = null;
   lastSecond = null;
@@ -261,8 +282,10 @@ function onState(msg) {
   const previous = state?.phase;
   state = msg;
   ui.ready.classList.toggle("hidden", msg.phase !== "connecting" || msg.you.ready);
-  ui.theirStatus.textContent = msg.them.ok ? "holding" : msg.them.reason;
-  ui.theirStatus.className = `their-status ${msg.them.ok ? "ok" : "bad"}`;
+  if (msg.them) {
+    ui.theirStatus.textContent = msg.them.ok ? "holding" : msg.them.reason;
+    ui.theirStatus.className = `their-status ${msg.them.ok ? "ok" : "bad"}`;
+  }
   ui.yourStatus.textContent = msg.you.ok ? "holding" : msg.you.reason;
   ui.yourStatus.className = `your-status ${msg.you.ok ? "ok" : "bad"}`;
 
@@ -292,12 +315,13 @@ function onResult(msg) {
   state = null;
   leaveRoom();
   if (!ui.arena.classList.contains("active")) return;
-  const titles = { win: "YOU WIN", loss: "YOU LOSE", draw: "DRAW" };
+  const titles = { win: "YOU WIN", loss: "YOU LOSE", draw: "DRAW", practice: formatTime(msg.yourMs) };
   ui.resultTitle.textContent = titles[msg.outcome];
   ui.resultTitle.className = `result-title ${msg.outcome}`;
-  ui.resultTimes.textContent = `You ${formatTime(msg.yourMs)}  ·  Them ${formatTime(msg.theirMs)}`;
+  ui.resultTimes.textContent = msg.practice ? "Practice hold" : `You ${formatTime(msg.yourMs)}  ·  Them ${formatTime(msg.theirMs)}`;
   const why = msg.outcome === "win" ? `They dropped: ${msg.theirReason}` : msg.yourReason ? `You dropped: ${msg.yourReason}` : "";
   ui.resultWhy.textContent = why;
+  ui.again.textContent = msg.practice ? "TRY AGAIN" : "PLAY AGAIN";
   ui.result.classList.remove("hidden");
   ui.ready.classList.add("hidden");
   ui.yourStatus.textContent = "";
@@ -305,8 +329,8 @@ function onResult(msg) {
   ui.big.textContent = "";
   ui.sub.textContent = "";
   if (msg.outcome === "win") [660, 880, 1320].forEach((f, i) => setTimeout(() => beep(f, 180), i * 160));
-  else beep(180, 600, 0.3);
-  say(titles[msg.outcome].toLowerCase(), 0);
+  else if (msg.outcome !== "practice") beep(180, 600, 0.3);
+  say(msg.practice ? `You held ${Math.round(msg.yourMs / 1000)} seconds` : titles[msg.outcome].toLowerCase(), 0);
 }
 
 function tick() {
@@ -333,8 +357,9 @@ ui.leave.addEventListener("click", () => {
 });
 
 ui.again.addEventListener("click", () => {
-  showSolo("Finding an opponent...");
-  queue();
+  const next = mode ?? "queue";
+  showWaiting(next === "queue" ? "Finding an opponent..." : "Starting practice...");
+  start(next);
 });
 
 ui.homeBtn.addEventListener("click", () => {

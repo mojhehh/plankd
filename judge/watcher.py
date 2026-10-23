@@ -41,6 +41,7 @@ class RoomWatcher:
         self._report = report
         self._streams: dict[str, asyncio.Task] = {}
         self._stopped = asyncio.Event()
+        self._error: BaseException | None = None
 
     def stop(self) -> None:
         self._stopped.set()
@@ -54,6 +55,8 @@ class RoomWatcher:
             await room.connect(self._url, self._token)
             log.info("watching room %s", self.room)
             await self._stopped.wait()
+            if self._error:
+                raise RuntimeError(f"judging failed in {self.room}") from self._error
         finally:
             for task in self._streams.values():
                 task.cancel()
@@ -63,6 +66,7 @@ class RoomWatcher:
 
     def _on_track(self, track: rtc.Track, publication: rtc.RemoteTrackPublication, participant: rtc.RemoteParticipant) -> None:
         identity = participant.identity
+        log.info("subscribed to %s track from %s (source %s)", track.kind, identity, publication.source)
         if track.kind != rtc.TrackKind.KIND_VIDEO or publication.source != rtc.TrackSource.SOURCE_CAMERA:
             return
         if identity not in self._players:
@@ -71,7 +75,15 @@ class RoomWatcher:
         previous = self._streams.pop(identity, None)
         if previous:
             previous.cancel()
-        self._streams[identity] = asyncio.create_task(self._watch(track, identity))
+        task = asyncio.create_task(self._watch(track, identity))
+        task.add_done_callback(lambda t: self._stream_done(identity, t))
+        self._streams[identity] = task
+
+    def _stream_done(self, identity: str, task: asyncio.Task) -> None:
+        if not task.cancelled() and task.exception():
+            self._error = task.exception()
+            log.error("judging %s in %s crashed", identity, self.room, exc_info=self._error)
+            self.stop()
 
     def _on_track_gone(self, track: rtc.Track, publication: rtc.RemoteTrackPublication, participant: rtc.RemoteParticipant) -> None:
         if publication.source != rtc.TrackSource.SOURCE_CAMERA:
