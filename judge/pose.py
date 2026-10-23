@@ -39,14 +39,14 @@ class PoseTracker:
         self._landmarker = PoseLandmarker.create_from_options(options)
         self._last_ts = -1
 
-    def detect(self, rgb: np.ndarray, ts_ms: int) -> list[list[float]] | None:
+    def detect(self, rgb: np.ndarray, ts_ms: int) -> tuple[list[list[float]], list[list[float]]] | None:
         ts = max(ts_ms, self._last_ts + 1)
         self._last_ts = ts
         image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         result = self._landmarker.detect_for_video(image, ts)
-        if not result.pose_landmarks:
+        if not result.pose_landmarks or not result.pose_world_landmarks:
             return None
-        return [
+        screen = [
             [
                 round(_clamp(p.x, -1.0, 2.0), 4),
                 round(_clamp(p.y, -1.0, 2.0), 4),
@@ -54,6 +54,11 @@ class PoseTracker:
             ]
             for p in result.pose_landmarks[0]
         ]
+        world = [
+            [round(_clamp(p.x, -3.0, 3.0), 4), round(_clamp(p.y, -3.0, 3.0), 4), round(_clamp(p.z, -3.0, 3.0), 4)]
+            for p in result.pose_world_landmarks[0]
+        ]
+        return screen, world
 
     def close(self) -> None:
         self._landmarker.close()

@@ -60,7 +60,7 @@ export class JudgeLink {
     }
     const entry = this.#rooms.get(msg?.room);
     if (!entry) return;
-    if (msg.t === "pose") entry.match.judgePose(msg.identity, msg.frame, msg.aspect);
+    if (msg.t === "pose") entry.match.judgePose(msg.identity, msg.frame, msg.aspect, msg.world);
     else if (msg.t === "watch_failed") entry.match.judgeFailed();
     else console.error("unknown judge message:", String(msg.t).slice(0, 20));
   }

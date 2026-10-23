@@ -18,15 +18,15 @@ function median(values) {
 export class Recorder {
   frames = [];
   #reasons = {};
-  #metrics = { visibility: [], length: [], tilt: [], hip: [], knee: [] };
+  #metrics = { upper: [], legs: [], size: [], tilt: [], hip: [], knee: [] };
 
-  add(phase, at, frame, aspect, reason) {
+  add(phase, at, frame, aspect, world, reason) {
     this.#reasons[reason] = (this.#reasons[reason] ?? 0) + 1;
     if (frame) {
-      const m = measurePlank(frame, aspect);
-      for (const key of Object.keys(this.#metrics)) this.#metrics[key].push(key === "visibility" || key === "length" ? m[key] * 100 : m[key]);
+      const m = measurePlank(frame, aspect, world);
+      for (const key of Object.keys(this.#metrics)) this.#metrics[key].push(["upper", "legs", "size"].includes(key) ? m[key] * 100 : m[key]);
     }
-    this.frames.push({ phase, at, aspect, reason, frame });
+    this.frames.push({ phase, at, aspect, reason, frame, world });
     if (this.frames.length > MAX_FRAMES) this.frames.shift();
   }
 

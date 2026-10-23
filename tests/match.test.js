@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { COUNTDOWN_MS, FROZEN_FRAMES, GRACE_MS, Match, SILENCE_MS } from "../server/match.js";
-import { ASPECT, fakeClock, fakePlayer, plankFrame } from "./fixtures.js";
+import { ASPECT, fakeClock, fakePlayer, plankPose } from "./fixtures.js";
 
 function setup() {
   const clock = fakeClock();
@@ -21,8 +21,9 @@ function setup() {
     while (clock.now() < end) {
       clock.advance(100);
       jitter = jitter === 0 ? 0.001 : 0;
-      for (const [identity, frame] of Object.entries(frames)) {
-        match.judgePose(identity, typeof frame === "function" ? frame(jitter) : frame, ASPECT);
+      for (const [identity, pose] of Object.entries(frames)) {
+        const { frame, world } = typeof pose === "function" ? pose(jitter) : pose;
+        match.judgePose(identity, frame, ASPECT, world);
       }
       match.tick();
     }
@@ -30,8 +31,8 @@ function setup() {
   return { clock, a, b, match, ended, step };
 }
 
-const planking = (jitter) => plankFrame({}, jitter);
-const sagging = (jitter) => plankFrame({ 23: [0.5, 0.66] }, jitter);
+const planking = (jitter) => plankPose({ jitter });
+const sagging = (jitter) => plankPose({ bend: { hip: 0.3 }, jitter });
 
 function startLive(ctx) {
   ctx.step(200, { id_a: planking, id_b: planking });
@@ -79,7 +80,7 @@ test("a short wobble inside the grace period is forgiven", () => {
 test("a frozen feed is treated as a drop", () => {
   const ctx = setup();
   startLive(ctx);
-  const still = plankFrame();
+  const still = plankPose();
   ctx.step((FROZEN_FRAMES + 1) * 100 + GRACE_MS + 300, { id_a: planking, id_b: still });
   assert.equal(ctx.match.phase, "done");
   assert.equal(ctx.b.last("result").yourReason, "video looks frozen");
@@ -118,13 +119,15 @@ test("leaving mid-plank is a loss", () => {
 
 test("frames for unknown identities and malformed frames are ignored", () => {
   const ctx = setup();
-  ctx.match.judgePose("intruder", plankFrame(), ASPECT);
+  const pose = plankPose();
+  ctx.match.judgePose("intruder", pose.frame, ASPECT, pose.world);
   const errors = [];
   const original = console.error;
   console.error = (msg) => errors.push(msg);
-  ctx.match.judgePose("id_a", [[1, 2]], ASPECT);
+  ctx.match.judgePose("id_a", [[1, 2]], ASPECT, pose.world);
+  ctx.match.judgePose("id_a", pose.frame, ASPECT, null);
   console.error = original;
-  assert.equal(errors.length, 1);
+  assert.equal(errors.length, 2);
   assert.match(ctx.match.ready(ctx.a), /can't see your camera/);
 });
 
@@ -147,16 +150,17 @@ test("a solo practice round runs and reports its own hold time", () => {
     while (clock.now() < end) {
       clock.advance(100);
       jitter = jitter === 0 ? 0.001 : 0;
-      match.judgePose("id_a", frame(jitter), ASPECT);
+      const { frame: f, world } = frame(jitter);
+      match.judgePose("id_a", f, ASPECT, world);
       match.tick();
     }
   };
-  run(200, (j) => plankFrame({}, j));
+  run(200, (j) => plankPose({ jitter: j }));
   assert.equal(a.last("skeleton").ok, true);
   assert.equal(match.ready(a), null);
-  run(COUNTDOWN_MS + 4_000, (j) => plankFrame({}, j));
+  run(COUNTDOWN_MS + 4_000, (j) => plankPose({ jitter: j }));
   assert.equal(a.last("state").them, null);
-  run(GRACE_MS + 300, (j) => plankFrame({ 23: [0.5, 0.66] }, j));
+  run(GRACE_MS + 300, (j) => plankPose({ bend: { hip: 0.3 }, jitter: j }));
   const result = a.last("result");
   assert.equal(result.outcome, "practice");
   assert.equal(result.theirMs, null);

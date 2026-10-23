@@ -107,12 +107,14 @@ class RoomWatcher:
                 rgb = to_rgb(event)
                 height, width = rgb.shape[:2]
                 ts_ms = event.timestamp_us // 1000
-                frame = await loop.run_in_executor(self._pool, tracker.detect, rgb, ts_ms)
+                pose = await loop.run_in_executor(self._pool, tracker.detect, rgb, ts_ms)
+                frame, world = pose if pose else (None, None)
                 await self._report({
                     "t": "pose",
                     "room": self.room,
                     "identity": identity,
                     "frame": frame,
+                    "world": world,
                     "aspect": round(width / height, 4),
                 })
         finally:

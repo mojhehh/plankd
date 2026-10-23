@@ -1,50 +1,75 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { assessPlank, isValidAspect, isValidFrame } from "../shared/plank.js";
-import { ASPECT, plankFrame } from "./fixtures.js";
+import { assessPlank, isValidAspect, isValidFrame, isValidWorld } from "../shared/plank.js";
+import { ASPECT, plankPose } from "./fixtures.js";
 
-test("a straight side-on plank holds", () => {
-  assert.deepEqual(assessPlank(plankFrame(), ASPECT), { ok: true, reason: "holding" });
+function reason(options) {
+  const { frame, world } = plankPose(options);
+  return assessPlank(frame, ASPECT, world).reason;
+}
+
+test("a straight plank holds filmed from the side", () => {
+  assert.equal(reason({ view: "side" }), "holding");
 });
 
-test("sagging hips fail", () => {
-  assert.equal(assessPlank(plankFrame({ 23: [0.5, 0.66] }), ASPECT).reason, "hips sagging");
+test("a straight plank holds filmed head-on", () => {
+  assert.equal(reason({ view: "front" }), "holding");
 });
 
-test("piked hips fail", () => {
-  assert.equal(assessPlank(plankFrame({ 23: [0.5, 0.36] }), ASPECT).reason, "hips too high");
+test("head-on with the legs half hidden behind the body still holds", () => {
+  assert.equal(reason({ view: "front", visibility: { knee: 0.3, ankle: 0.2 } }), "holding");
 });
 
-test("knees on the floor fail", () => {
-  assert.equal(assessPlank(plankFrame({ 25: [0.6, 0.66], 27: [0.75, 0.55] }), ASPECT).reason, "knees down");
+for (const view of ["side", "front"]) {
+  test(`sagging hips fail (${view})`, () => {
+    assert.equal(reason({ view, bend: { hip: 0.3 } }), "hips sagging");
+  });
+
+  test(`piked hips fail (${view})`, () => {
+    assert.equal(reason({ view, bend: { hip: -0.35 } }), "hips too high");
+  });
+
+  test(`knees on the floor fail (${view})`, () => {
+    assert.equal(reason({ view, bend: { knee: 0.35 } }), "knees down");
+  });
+
+  test(`standing up fails (${view})`, () => {
+    assert.equal(reason({ view, standing: true }), "get horizontal");
+  });
+}
+
+test("arms above the shoulders fail", () => {
+  assert.equal(reason({ bend: { elbow: -0.6 } }), "arms under your shoulders");
 });
 
-test("standing up fails", () => {
-  const standing = plankFrame({ 11: [0.5, 0.2], 13: [0.52, 0.35], 23: [0.5, 0.5], 25: [0.5, 0.7], 27: [0.5, 0.9] });
-  assert.equal(assessPlank(standing, ASPECT).reason, "get horizontal");
+test("no legs visible at all fails", () => {
+  assert.equal(reason({ view: "front", visibility: { knee: 0.05, ankle: 0.05 } }), "legs not in frame");
+});
+
+test("hidden shoulders fail", () => {
+  assert.equal(reason({ visibility: { shoulder: 0.2 } }), "upper body not in frame");
 });
 
 test("a body too far away fails", () => {
-  const tiny = plankFrame({ 11: [0.45, 0.5], 13: [0.45, 0.52], 23: [0.5, 0.505], 25: [0.53, 0.507], 27: [0.56, 0.51] });
-  assert.equal(assessPlank(tiny, ASPECT).reason, "move closer to the camera");
+  assert.equal(reason({ scale: 0.2 }), "move closer to the camera");
 });
 
-test("hidden landmarks fail", () => {
-  const frame = plankFrame();
-  frame[27][2] = 0.1;
-  frame[28][2] = 0.1;
-  assert.equal(assessPlank(frame, ASPECT).reason, "whole body not in frame");
-});
-
-test("frame validation rejects malformed input", () => {
-  assert.equal(isValidFrame(plankFrame()), true);
-  assert.equal(isValidFrame(plankFrame().slice(1)), false);
+test("validation rejects malformed input", () => {
+  const { frame, world } = plankPose();
+  assert.equal(isValidFrame(frame), true);
+  assert.equal(isValidWorld(world), true);
+  assert.equal(isValidFrame(frame.slice(1)), false);
+  assert.equal(isValidWorld(world.slice(1)), false);
   assert.equal(isValidFrame("nope"), false);
-  const bad = plankFrame();
+  assert.equal(isValidWorld(null), false);
+  const bad = plankPose().frame;
   bad[3] = [0.5, Number.NaN, 0.9];
   assert.equal(isValidFrame(bad), false);
   bad[3] = [5, 0.5, 0.9];
   assert.equal(isValidFrame(bad), false);
+  const farWorld = plankPose().world;
+  farWorld[0] = [9, 0, 0];
+  assert.equal(isValidWorld(farWorld), false);
   assert.equal(isValidAspect(16 / 9), true);
   assert.equal(isValidAspect(0), false);
   assert.equal(isValidAspect(Infinity), false);

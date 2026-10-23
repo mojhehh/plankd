@@ -1,4 +1,4 @@
-import { assessPlank, isValidAspect, isValidFrame } from "../shared/plank.js";
+import { assessPlank, isValidAspect, isValidFrame, isValidWorld } from "../shared/plank.js";
 import { Recorder } from "./recorder.js";
 
 export const COUNTDOWN_MS = 10_000;
@@ -19,7 +19,7 @@ class Feed {
   prev = null;
   still = 0;
 
-  update(frame, aspect, now) {
+  update(frame, aspect, world, now) {
     this.at = now;
     if (frame === null) {
       this.prev = null;
@@ -35,7 +35,7 @@ class Feed {
       this.reason = "video looks frozen";
       return;
     }
-    ({ ok: this.ok, reason: this.reason } = assessPlank(frame, aspect));
+    ({ ok: this.ok, reason: this.reason } = assessPlank(frame, aspect, world));
   }
 
   live(now) {
@@ -116,18 +116,18 @@ export class Match {
     return null;
   }
 
-  judgePose(identity, frame, aspect) {
+  judgePose(identity, frame, aspect, world) {
     if (this.phase === "done") return;
     const side = this.#sides.find((s) => s.identity === identity);
     if (!side) return;
-    if (frame !== null && (!isValidFrame(frame) || !isValidAspect(aspect))) {
+    if (frame !== null && (!isValidFrame(frame) || !isValidWorld(world) || !isValidAspect(aspect))) {
       console.error(`judge sent an invalid frame for ${identity}`);
       return;
     }
     const now = this.#clock();
     if (now - side.feed.at < FRAME_MIN_GAP_MS) return;
-    side.feed.update(frame, aspect, now);
-    side.recorder.add(this.phase, now, frame, aspect, side.feed.reason);
+    side.feed.update(frame, aspect, world, now);
+    side.recorder.add(this.phase, now, frame, aspect, world, side.feed.reason);
     side.player.send({ t: "skeleton", frame, aspect, ok: side.feed.ok });
   }
 
