@@ -7,13 +7,13 @@ const KNEES = [25, 26];
 const ANKLES = [27, 28];
 
 const MIN_UPPER_VISIBILITY = 0.5;
-const MIN_LEG_VISIBILITY = 0.3;
+const MIN_LIMB_VISIBILITY = 0.5;
+const MIN_SIZE = 0.15;
 const MAX_FRONTAL_RATIO = 1.1;
-const MIN_SIZE = 0.2;
-const MAX_TILT_DEG = 45;
-const MAX_TORSO_TILT_DEG = 40;
-const MIN_HIP_DEG = 145;
+const MAX_TORSO_TILT_DEG = 45;
+const MIN_THIGH_DEG = 140;
 const MIN_KNEE_DEG = 120;
+const PIKE_RISE_M = 0.12;
 
 function inRange(value, low, high) {
   return Number.isFinite(value) && value >= low && value <= high;
@@ -88,36 +88,38 @@ export function measurePlank(frame, aspect, world) {
   const hip = mid(world, HIPS);
   const knee = mid(world, KNEES);
   const ankle = mid(world, ANKLES);
-  const body = sub(ankle, shoulder);
-  const t = dot(sub(hip, shoulder), body) / (dot(body, body) || 1e-6);
-  const lineY = shoulder[1] + t * body[1];
+  const thighLine = sub(knee, shoulder);
+  const t = dot(sub(hip, shoulder), thighLine) / (dot(thighLine, thighLine) || 1e-6);
   const towardHead = sub(shoulder, hip);
   return {
-    upper: Math.min(bestVisibility(frame, SHOULDERS), bestVisibility(frame, ELBOWS), bestVisibility(frame, HIPS)),
-    legs: Math.max(bestVisibility(frame, KNEES), bestVisibility(frame, ANKLES)),
+    upper: Math.min(bestVisibility(frame, SHOULDERS), bestVisibility(frame, HIPS)),
+    elbows: bestVisibility(frame, ELBOWS),
+    knees: bestVisibility(frame, KNEES),
+    ankles: bestVisibility(frame, ANKLES),
     legsFolded: dot(sub(knee, hip), towardHead) > 0 || dot(sub(ankle, hip), towardHead) > 0,
     size: screenSize(frame, aspect),
     frontal: frontalRatio(frame, aspect),
     torsoTilt: tiltOf(sub(hip, shoulder)),
-    tilt: tiltOf(body),
-    hip: angleAt(shoulder, hip, ankle),
+    thigh: angleAt(shoulder, hip, knee),
     knee: angleAt(hip, knee, ankle),
-    hipsLow: hip[1] > lineY,
+    hipsLow: hip[1] > shoulder[1] + t * thighLine[1],
+    hipsHigh: hip[1] < shoulder[1] - PIKE_RISE_M,
     armsDown: elbow[1] > shoulder[1],
   };
 }
 
 export function assessPlank(frame, aspect, world) {
   const m = measurePlank(frame, aspect, world);
-  if (m.upper < MIN_UPPER_VISIBILITY) return { ok: false, reason: "upper body not in frame" };
-  if (m.legs < MIN_LEG_VISIBILITY) return { ok: false, reason: "legs not in frame" };
+  if (m.upper < MIN_UPPER_VISIBILITY) return { ok: false, reason: "shoulders and hips not in frame" };
   if (m.size < MIN_SIZE) return { ok: false, reason: "move closer to the camera" };
-  if (m.frontal > MAX_FRONTAL_RATIO) return { ok: false, reason: "camera sees your face, move it beside you" };
   if (m.torsoTilt > MAX_TORSO_TILT_DEG) return { ok: false, reason: "get horizontal" };
-  if (!m.armsDown) return { ok: false, reason: "arms under your shoulders" };
-  if (m.legsFolded) return { ok: false, reason: "show your knees" };
-  if (m.tilt > MAX_TILT_DEG) return { ok: false, reason: "get horizontal" };
-  if (m.hip < MIN_HIP_DEG) return { ok: false, reason: m.hipsLow ? "hips sagging" : "hips too high" };
-  if (m.knee < MIN_KNEE_DEG) return { ok: false, reason: "knees down" };
+  if (m.elbows >= MIN_LIMB_VISIBILITY && !m.armsDown) return { ok: false, reason: "arms under your shoulders" };
+  const legsReadable = m.frontal <= MAX_FRONTAL_RATIO && !m.legsFolded && m.knees >= MIN_LIMB_VISIBILITY;
+  if (!legsReadable) return { ok: true, reason: "holding" };
+  if (m.thigh < MIN_THIGH_DEG) {
+    if (m.hipsLow) return { ok: false, reason: "hips sagging" };
+    return { ok: false, reason: m.hipsHigh ? "hips too high" : "knees down" };
+  }
+  if (m.ankles >= MIN_LIMB_VISIBILITY && m.knee < MIN_KNEE_DEG) return { ok: false, reason: "knees down" };
   return { ok: true, reason: "holding" };
 }

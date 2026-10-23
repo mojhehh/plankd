@@ -12,9 +12,17 @@ test("a straight plank filmed from the side holds", () => {
   assert.equal(reason({ view: "side" }), "holding");
 });
 
-test("a camera facing the player is refused, since kneeling looks like planking head-on", () => {
-  assert.equal(reason({ view: "front" }), "camera sees your face, move it beside you");
-  assert.equal(reason({ view: "front", place: { knee: [0.1, 0.45], ankle: [0.55, 0.45] } }), "camera sees your face, move it beside you");
+test("a plank filmed head-on holds", () => {
+  assert.equal(reason({ view: "front" }), "holding");
+});
+
+test("head-on, legs are not judged, so a kneel passes in casual mode", () => {
+  assert.equal(reason({ view: "front", place: { knee: [0.1, 0.45], ankle: [0.55, 0.45] } }), "holding");
+  assert.equal(reason({ view: "front", bend: { knee: 0.35 } }), "holding");
+});
+
+test("standing up fails head-on too", () => {
+  assert.equal(reason({ view: "front", standing: true }), "get horizontal");
 });
 
 test("sagging hips fail", () => {
@@ -30,8 +38,13 @@ test("knees on the floor fail", () => {
   assert.equal(reason({ place: { knee: [0.1, 0.45], ankle: [0.55, 0.45] } }), "knees down");
 });
 
-test("legs the model folds toward the head are not trusted", () => {
-  assert.equal(reason({ place: { knee: [-0.35, 0.2], ankle: [-0.15, 0.3] } }), "show your knees");
+test("legs the model folds toward the head are skipped instead of failing", () => {
+  assert.equal(reason({ place: { knee: [-0.35, 0.2], ankle: [-0.15, 0.3] } }), "holding");
+});
+
+test("feet out of frame are fine as long as the knees show", () => {
+  assert.equal(reason({ visibility: { ankle: 0.05 } }), "holding");
+  assert.equal(reason({ visibility: { ankle: 0.05 }, place: { knee: [0.1, 0.45] } }), "knees down");
 });
 
 test("standing up fails", () => {
@@ -42,12 +55,12 @@ test("arms above the shoulders fail", () => {
   assert.equal(reason({ bend: { elbow: -0.6 } }), "arms under your shoulders");
 });
 
-test("barely visible legs fail", () => {
-  assert.equal(reason({ visibility: { knee: 0.1, ankle: 0.1 } }), "legs not in frame");
+test("legs fully out of frame still hold", () => {
+  assert.equal(reason({ visibility: { knee: 0.1, ankle: 0.1 } }), "holding");
 });
 
 test("hidden shoulders fail", () => {
-  assert.equal(reason({ visibility: { shoulder: 0.2 } }), "upper body not in frame");
+  assert.equal(reason({ visibility: { shoulder: 0.2 } }), "shoulders and hips not in frame");
 });
 
 test("a body too far away fails", () => {
